@@ -3,14 +3,14 @@
 
 ; ============================================================
 ; Atlantica 功能菜单（图形界面版，AHK v2）
-; 原来的两个脚本已经合并到这一个窗口里，不用再记快捷键，
-; 也不会出现两个脚本都抢 F8 的冲突。
+; 原来的两个脚本已经合并到这一个窗口里，
+; 不会出现两个脚本都抢 F8 的冲突。
 ;
 ; 功能：
 ;   1. 桌面轮询：
 ;      切桌面 -> 停 0.5 秒 -> 左键点 (212,57) -> 停 0.5 秒
 ;      -> 点击 -> 按 G -> 下一个桌面，循环
-;   2. 点击功能（两点点击 + 右键点击合并）：
+;   2. 开箱子（两点点击 + 右键点击合并）：
 ;      左边按钮：两种点击同时操作
 ;        两点点击：(700,450) 点一下 -> (822,450) 点一下，循环
 ;        右键点击：同时在 (980,593) 定时右键
@@ -19,9 +19,9 @@
 ;      两个按钮互斥：点另一个会先停掉当前模式再启动新模式；
 ;      再点一次正在运行的按钮就是停止。
 ;
-; 使用：双击运行本脚本，点按钮即可。关窗口或点“退出”
-;       即全部停止并退出。按 F9 可全部停止（不退出，
-;       窗口留在原地，可以再点按钮重新启动）。
+; 使用：双击运行本脚本，点按钮或按快捷键即可。
+;       F11 开关桌面轮询，F12 开关开箱子，F9 统一暂停（不退出）。
+;       关窗口或点“退出”即全部停止并退出。
 ; 注意：功能 1 需要 VirtualDesktopAccessor.dll 放在本脚本同目录，
 ;       且 DLL 版本要和你的 Windows 版本匹配，否则该功能会被禁用。
 ; ============================================================
@@ -71,7 +71,7 @@ MyGui.SetFont("s10")
 MyGui.Add("Text", "x10 y10 w360", "打开后点下面的功能按钮即可开始，再点一次停止。")
 
 ; ---- 功能 1：桌面轮询 ----
-MyGui.Add("Text", "x10 y40 w360", "1. 桌面轮询（切桌面 -> 停 0.5 秒 -> 点 (212,57) -> 停 0.5 秒 -> 点击 -> 按 G）")
+MyGui.Add("Text", "x10 y40 w360", "1. 桌面轮询 (F11)")
 MyGui.Add("Text", "x10 y65 w70", "每步间隔(ms):")
 edtDesktopWait := MyGui.Add("Edit", "x85 y62 w70", "1000")
 MyGui.Add("Text", "x165 y65 w40", "按键:")
@@ -84,8 +84,8 @@ btnDesktop := MyGui.Add("Button", "x10 y125 w360 h30", "开始：桌面轮询")
 btnDesktop.OnEvent("Click", ToggleDesktop)
 txtDesktopStatus := MyGui.Add("Text", "x10 y160 w360", "状态：未运行")
 
-; ---- 功能 2：点击功能（两点点击 + 右键点击）----
-MyGui.Add("Text", "x10 y190 w360", "2. 点击功能（两点点击 + 右键点击，左右两个按钮二选一）")
+; ---- 功能 2：开箱子（两点点击 + 右键点击）----
+MyGui.Add("Text", "x10 y190 w360", "2. 开箱子 (F12)")
 MyGui.Add("Text", "x10 y215 w50", "点 1 X:")
 edtP1X := MyGui.Add("Edit", "x60 y212 w55", "700")
 MyGui.Add("Text", "x125 y215 w15", "Y:")
@@ -115,7 +115,7 @@ btnStopAll := MyGui.Add("Button", "x10 y365 w175 h30", "全部停止")
 btnStopAll.OnEvent("Click", StopAll)
 btnExit := MyGui.Add("Button", "x195 y365 w175 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
-MyGui.Add("Text", "x10 y405 w360 h40", "提示：按 F9 可全部停止（不退出）。功能 1 需要同目录下的 VirtualDesktopAccessor.dll，版本须匹配 Windows。")
+MyGui.Add("Text", "x10 y405 w360 h50", "提示：F11 桌面轮询，F12 开箱子，F9 统一暂停（不退出）。功能 1 需要同目录下的 VirtualDesktopAccessor.dll，版本须匹配 Windows。")
 MyGui.OnEvent("Close", (*) => ExitApp())
 
 ; DLL 没加载成功时，禁用功能 1，不影响功能 2
@@ -179,13 +179,13 @@ StepDesktop() {
     }
 }
 
-; ===== 功能 2：点击功能 =====
+; ===== 功能 2：开箱子 =====
 UpdateClickButtons() {
     global ClickMode, btnBoth, btnRightOnly, txtClickStatus
     if (ClickMode = "both") {
         btnBoth.Text := "停止：两种点击同时操作"
         btnRightOnly.Text := "只做右键点击"
-        txtClickStatus.Text := "状态：运行中（两点点击 + 右键点击）"
+        txtClickStatus.Text := "状态：运行中（开箱子：两种点击同时）"
     } else if (ClickMode = "right") {
         btnBoth.Text := "两种点击同时操作"
         btnRightOnly.Text := "停止：只做右键点击"
@@ -219,7 +219,7 @@ ToggleBoth(*) {
     ; 先校验，校验不过就保持当前模式不动
     for ctrl in [edtP1X, edtP1Y, edtP2X, edtP2Y, edtWait1, edtWait2, edtRightX, edtRightY, edtRightInterval] {
         if (!IsNumber(ctrl.Value)) {
-            MsgBox("点击功能的坐标和间隔请都填数字。")
+            MsgBox("开箱子的坐标和间隔请都填数字。")
             return
         }
     }
@@ -302,7 +302,22 @@ StopAll(*) {
     ToolTip()
 }
 
-; ===== 停止快捷键：F9 = 全部停止（不退出程序）=====
-; 原脚本的 F9 是退出，这里改成停止，这样按一下就能停住
-; 正在跑的鼠标动作，窗口还在，可以再点按钮重新开始。
+; F12 用的开关：未运行时启动两种点击同时模式，
+; 运行中（无论是两种同时还是仅右键）则暂停。
+ToggleClickHotkey(*) {
+    global ClickMode
+    if (ClickMode != "") {
+        StopClickLoops()
+        ToolTip()
+    } else {
+        ToggleBoth()
+    }
+}
+
+; ===== 快捷键 =====
+; F11 = 桌面轮询 开启 / 暂停
+; F12 = 开箱子 开启 / 暂停
+; F9  = 统一暂停（全部停止，不退出程序，窗口还在，可再启动）
+F11::ToggleDesktop()
+F12::ToggleClickHotkey()
 F9::StopAll()
