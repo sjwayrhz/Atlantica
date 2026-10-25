@@ -23,6 +23,8 @@
 ;
 ; 使用：双击运行本脚本，点按钮或按快捷键即可。
 ;       F11 开关桌面轮询，F12 开关开箱子，F9 统一暂停（不退出）。
+;       点“保存配置”会把界面里当前填的坐标、间隔、按键存到
+;       同目录的 Atlantica_Config.ini，下次打开自动恢复。
 ;       关窗口或点“退出”即全部停止并退出。
 ; 注意：功能 1 需要 VirtualDesktopAccessor.dll 放在本脚本同目录，
 ;       且 DLL 版本要和你的 Windows 版本匹配，否则该功能会被禁用。
@@ -66,6 +68,23 @@ RightX := 980
 RightY := 593
 RightClickInterval := 3500
 
+; ===== 配置文件（保存配置按钮用，下次打开自动恢复）=====
+; 文件不存在时用下面这些默认值，保存过一次后就用保存过的值。
+ConfigFile := A_ScriptDir "\Atlantica_Config.ini"
+CfgDesktopWait := IniRead(ConfigFile, "Desktop", "WaitMs", "1000")
+CfgDesktopKey := IniRead(ConfigFile, "Desktop", "Key", "g")
+CfgSwitchX := IniRead(ConfigFile, "Desktop", "SwitchX", "212")
+CfgSwitchY := IniRead(ConfigFile, "Desktop", "SwitchY", "57")
+CfgPoint1X := IniRead(ConfigFile, "Click", "Point1X", "700")
+CfgPoint1Y := IniRead(ConfigFile, "Click", "Point1Y", "450")
+CfgPoint2X := IniRead(ConfigFile, "Click", "Point2X", "822")
+CfgPoint2Y := IniRead(ConfigFile, "Click", "Point2Y", "450")
+CfgWaitAfterFirst := IniRead(ConfigFile, "Click", "WaitAfterFirst", "1000")
+CfgWaitAfterSecond := IniRead(ConfigFile, "Click", "WaitAfterSecond", "2000")
+CfgRightX := IniRead(ConfigFile, "Click", "RightX", "980")
+CfgRightY := IniRead(ConfigFile, "Click", "RightY", "593")
+CfgRightInterval := IniRead(ConfigFile, "Click", "RightInterval", "3500")
+
 ; ===== 图形界面 =====
 MyGui := Gui(, "Atlantica 功能菜单")
 MyGui.SetFont("s10")
@@ -75,13 +94,13 @@ MyGui.Add("Text", "x10 y10 w360", "打开后点下面的功能按钮即可开始
 ; ---- 功能 1：桌面轮询 ----
 MyGui.Add("Text", "x10 y40 w360", "1. 桌面轮询 (F11)")
 MyGui.Add("Text", "x10 y65 w70", "每步间隔(ms):")
-edtDesktopWait := MyGui.Add("Edit", "x85 y62 w70", "1000")
+edtDesktopWait := MyGui.Add("Edit", "x85 y62 w70", CfgDesktopWait)
 MyGui.Add("Text", "x165 y65 w40", "按键:")
-edtDesktopKey := MyGui.Add("Edit", "x205 y62 w50", "g")
+edtDesktopKey := MyGui.Add("Edit", "x205 y62 w50", CfgDesktopKey)
 MyGui.Add("Text", "x10 y95 w90", "切换后点击 X:")
-edtSwitchX := MyGui.Add("Edit", "x100 y92 w60", "212")
+edtSwitchX := MyGui.Add("Edit", "x100 y92 w60", CfgSwitchX)
 MyGui.Add("Text", "x170 y95 w15", "Y:")
-edtSwitchY := MyGui.Add("Edit", "x185 y92 w60", "57")
+edtSwitchY := MyGui.Add("Edit", "x185 y92 w60", CfgSwitchY)
 btnDesktop := MyGui.Add("Button", "x10 y125 w360 h30", "开始：桌面轮询")
 btnDesktop.OnEvent("Click", ToggleDesktop)
 txtDesktopStatus := MyGui.Add("Text", "x10 y160 w360", "状态：未运行")
@@ -89,23 +108,23 @@ txtDesktopStatus := MyGui.Add("Text", "x10 y160 w360", "状态：未运行")
 ; ---- 功能 2：开箱子（两点点击 + 右键点击）----
 MyGui.Add("Text", "x10 y190 w360", "2. 开箱子 (F12)")
 MyGui.Add("Text", "x10 y215 w50", "点 1 X:")
-edtP1X := MyGui.Add("Edit", "x60 y212 w55", "700")
+edtP1X := MyGui.Add("Edit", "x60 y212 w55", CfgPoint1X)
 MyGui.Add("Text", "x125 y215 w15", "Y:")
-edtP1Y := MyGui.Add("Edit", "x140 y212 w55", "450")
+edtP1Y := MyGui.Add("Edit", "x140 y212 w55", CfgPoint1Y)
 MyGui.Add("Text", "x205 y215 w50", "点 2 X:")
-edtP2X := MyGui.Add("Edit", "x255 y212 w55", "822")
+edtP2X := MyGui.Add("Edit", "x255 y212 w55", CfgPoint2X)
 MyGui.Add("Text", "x320 y215 w15", "Y:")
-edtP2Y := MyGui.Add("Edit", "x335 y212 w35", "450")
+edtP2Y := MyGui.Add("Edit", "x335 y212 w35", CfgPoint2Y)
 MyGui.Add("Text", "x10 y242 w80", "点 1 后等(ms):")
-edtWait1 := MyGui.Add("Edit", "x95 y239 w60", "1000")
+edtWait1 := MyGui.Add("Edit", "x95 y239 w60", CfgWaitAfterFirst)
 MyGui.Add("Text", "x165 y242 w80", "点 2 后等(ms):")
-edtWait2 := MyGui.Add("Edit", "x250 y239 w60", "2000")
+edtWait2 := MyGui.Add("Edit", "x250 y239 w60", CfgWaitAfterSecond)
 MyGui.Add("Text", "x10 y272 w50", "右键 X:")
-edtRightX := MyGui.Add("Edit", "x60 y269 w60", "980")
+edtRightX := MyGui.Add("Edit", "x60 y269 w60", CfgRightX)
 MyGui.Add("Text", "x130 y272 w15", "Y:")
-edtRightY := MyGui.Add("Edit", "x145 y269 w60", "593")
+edtRightY := MyGui.Add("Edit", "x145 y269 w60", CfgRightY)
 MyGui.Add("Text", "x215 y272 w60", "间隔(ms):")
-edtRightInterval := MyGui.Add("Edit", "x280 y269 w70", "3500")
+edtRightInterval := MyGui.Add("Edit", "x280 y269 w70", CfgRightInterval)
 btnBoth := MyGui.Add("Button", "x10 y300 w150 h30", "两种点击同时操作")
 btnBoth.OnEvent("Click", ToggleBoth)
 btnRightOnly := MyGui.Add("Button", "x165 y300 w100 h30", "抽奖")
@@ -115,9 +134,11 @@ btnSynth.OnEvent("Click", ToggleSynth)
 txtClickStatus := MyGui.Add("Text", "x10 y335 w360", "状态：未运行")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y365 w175 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y365 w115 h30", "全部停止")
 btnStopAll.OnEvent("Click", StopAll)
-btnExit := MyGui.Add("Button", "x195 y365 w175 h30", "退出")
+btnSaveConfig := MyGui.Add("Button", "x132 y365 w115 h30", "保存配置")
+btnSaveConfig.OnEvent("Click", SaveConfig)
+btnExit := MyGui.Add("Button", "x254 y365 w115 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 MyGui.Add("Text", "x10 y405 w360 h50", "提示：F11 桌面轮询，F12 开箱子，F9 统一暂停（不退出）。功能 1 需要同目录下的 VirtualDesktopAccessor.dll，版本须匹配 Windows。")
 MyGui.OnEvent("Close", (*) => ExitApp())
@@ -340,6 +361,40 @@ StopAll(*) {
     }
     StopClickLoops()
     ToolTip()
+}
+
+; ===== 保存配置 =====
+; 保存的是界面里当前填的值（不是正在运行的那份旧值），
+; 存到脚本同目录的 Atlantica_Config.ini，下次打开自动恢复。
+; 正在运行时点保存也不会停掉正在跑的功能。
+SaveConfig(*) {
+    global ConfigFile
+    global edtDesktopWait, edtDesktopKey, edtSwitchX, edtSwitchY
+    global edtP1X, edtP1Y, edtP2X, edtP2Y, edtWait1, edtWait2, edtRightX, edtRightY, edtRightInterval
+    for ctrl in [edtDesktopWait, edtSwitchX, edtSwitchY, edtP1X, edtP1Y, edtP2X, edtP2Y, edtWait1, edtWait2, edtRightX, edtRightY, edtRightInterval] {
+        if (!IsNumber(ctrl.Value)) {
+            MsgBox("有坐标或间隔不是数字，配置没有保存，请先改成数字再点保存配置。")
+            return
+        }
+    }
+    if (edtDesktopKey.Value = "") {
+        MsgBox("桌面轮询按键不能为空，配置没有保存。")
+        return
+    }
+    IniWrite(edtDesktopWait.Value, ConfigFile, "Desktop", "WaitMs")
+    IniWrite(edtDesktopKey.Value, ConfigFile, "Desktop", "Key")
+    IniWrite(edtSwitchX.Value, ConfigFile, "Desktop", "SwitchX")
+    IniWrite(edtSwitchY.Value, ConfigFile, "Desktop", "SwitchY")
+    IniWrite(edtP1X.Value, ConfigFile, "Click", "Point1X")
+    IniWrite(edtP1Y.Value, ConfigFile, "Click", "Point1Y")
+    IniWrite(edtP2X.Value, ConfigFile, "Click", "Point2X")
+    IniWrite(edtP2Y.Value, ConfigFile, "Click", "Point2Y")
+    IniWrite(edtWait1.Value, ConfigFile, "Click", "WaitAfterFirst")
+    IniWrite(edtWait2.Value, ConfigFile, "Click", "WaitAfterSecond")
+    IniWrite(edtRightX.Value, ConfigFile, "Click", "RightX")
+    IniWrite(edtRightY.Value, ConfigFile, "Click", "RightY")
+    IniWrite(edtRightInterval.Value, ConfigFile, "Click", "RightInterval")
+    MsgBox("配置已保存到：`n" ConfigFile "`n下次打开脚本会自动恢复这些坐标和间隔。")
 }
 
 ; F12 用的开关：未运行时启动两种点击同时模式，
