@@ -14,9 +14,11 @@
 ;      左边按钮：两种点击同时操作
 ;        两点点击：(700,450) 点一下 -> (822,450) 点一下，循环
 ;        右键点击：同时在 (980,593) 定时右键
-;      右边按钮：只做右键点击
+;      中间按钮：抽奖（只做右键点击）
 ;        只在 (980,593) 定时右键，两点点击不启动
-;      两个按钮互斥：点另一个会先停掉当前模式再启动新模式；
+;      右边按钮：合成（只做点击移动点击，即两点点击）
+;        只做两点点击，右键点击不启动
+;      三个按钮互斥：点另一个会先停掉当前模式再启动新模式；
 ;      再点一次正在运行的按钮就是停止。
 ;
 ; 使用：双击运行本脚本，点按钮或按快捷键即可。
@@ -49,7 +51,7 @@ DesktopKey := "g"
 SwitchClickX := 212     ; 每次切换后要点的固定位置
 SwitchClickY := 57
 
-ClickMode := ""         ; "" = 未运行，"both" = 两种同时，"right" = 仅右键
+ClickMode := ""         ; "" = 未运行，"both" = 两种同时，"right" = 仅右键（抽奖），"two" = 仅两点点击（合成）
 TwoRunning := false
 TwoPhase := 0
 Point1X := 700
@@ -104,10 +106,12 @@ MyGui.Add("Text", "x130 y272 w15", "Y:")
 edtRightY := MyGui.Add("Edit", "x145 y269 w60", "593")
 MyGui.Add("Text", "x215 y272 w60", "间隔(ms):")
 edtRightInterval := MyGui.Add("Edit", "x280 y269 w70", "3500")
-btnBoth := MyGui.Add("Button", "x10 y300 w175 h30", "两种点击同时操作")
+btnBoth := MyGui.Add("Button", "x10 y300 w150 h30", "两种点击同时操作")
 btnBoth.OnEvent("Click", ToggleBoth)
-btnRightOnly := MyGui.Add("Button", "x195 y300 w175 h30", "只做右键点击")
+btnRightOnly := MyGui.Add("Button", "x165 y300 w100 h30", "抽奖")
 btnRightOnly.OnEvent("Click", ToggleRightOnly)
+btnSynth := MyGui.Add("Button", "x270 y300 w100 h30", "合成")
+btnSynth.OnEvent("Click", ToggleSynth)
 txtClickStatus := MyGui.Add("Text", "x10 y335 w360", "状态：未运行")
 
 ; ---- 底部 ----
@@ -181,18 +185,26 @@ StepDesktop() {
 
 ; ===== 功能 2：开箱子 =====
 UpdateClickButtons() {
-    global ClickMode, btnBoth, btnRightOnly, txtClickStatus
+    global ClickMode, btnBoth, btnRightOnly, btnSynth, txtClickStatus
     if (ClickMode = "both") {
         btnBoth.Text := "停止：两种点击同时操作"
-        btnRightOnly.Text := "只做右键点击"
+        btnRightOnly.Text := "抽奖"
+        btnSynth.Text := "合成"
         txtClickStatus.Text := "状态：运行中（开箱子：两种点击同时）"
     } else if (ClickMode = "right") {
         btnBoth.Text := "两种点击同时操作"
-        btnRightOnly.Text := "停止：只做右键点击"
-        txtClickStatus.Text := "状态：运行中（仅右键点击）"
+        btnRightOnly.Text := "停止：抽奖"
+        btnSynth.Text := "合成"
+        txtClickStatus.Text := "状态：运行中（抽奖）"
+    } else if (ClickMode = "two") {
+        btnBoth.Text := "两种点击同时操作"
+        btnRightOnly.Text := "抽奖"
+        btnSynth.Text := "停止：合成"
+        txtClickStatus.Text := "状态：运行中（合成：两点点击）"
     } else {
         btnBoth.Text := "两种点击同时操作"
-        btnRightOnly.Text := "只做右键点击"
+        btnRightOnly.Text := "抽奖"
+        btnSynth.Text := "合成"
         txtClickStatus.Text := "状态：未运行"
     }
 }
@@ -268,6 +280,34 @@ ToggleRightOnly(*) {
     SetTimer(StepRight, RightClickInterval)
 }
 
+ToggleSynth(*) {
+    global ClickMode, TwoRunning, TwoPhase, Point1X, Point1Y, Point2X, Point2Y, WaitAfterFirst, WaitAfterSecond
+    global edtP1X, edtP1Y, edtP2X, edtP2Y, edtWait1, edtWait2
+    if (ClickMode = "two") {
+        StopClickLoops()
+        ToolTip()
+        return
+    }
+    for ctrl in [edtP1X, edtP1Y, edtP2X, edtP2Y, edtWait1, edtWait2] {
+        if (!IsNumber(ctrl.Value)) {
+            MsgBox("合成的坐标和间隔请都填数字。")
+            return
+        }
+    }
+    StopClickLoops()
+    Point1X := Integer(edtP1X.Value)
+    Point1Y := Integer(edtP1Y.Value)
+    Point2X := Integer(edtP2X.Value)
+    Point2Y := Integer(edtP2Y.Value)
+    WaitAfterFirst := Integer(edtWait1.Value)
+    WaitAfterSecond := Integer(edtWait2.Value)
+    TwoRunning := true
+    TwoPhase := 0
+    ClickMode := "two"
+    UpdateClickButtons()
+    StepTwo()
+}
+
 StepTwo() {
     global TwoPhase, Point1X, Point1Y, Point2X, Point2Y, WaitAfterFirst, WaitAfterSecond
     if (TwoPhase = 0) {
@@ -303,7 +343,7 @@ StopAll(*) {
 }
 
 ; F12 用的开关：未运行时启动两种点击同时模式，
-; 运行中（无论是两种同时还是仅右键）则暂停。
+; 运行中（无论哪种模式）则暂停。
 ToggleClickHotkey(*) {
     global ClickMode
     if (ClickMode != "") {
