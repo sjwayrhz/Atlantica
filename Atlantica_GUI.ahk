@@ -22,8 +22,10 @@
 ;      从你发的截图转出来的），亮版是浅底深剑；暗版图案只用来
 ;      定位要点的图标位置，不参与亮暗判断。放映机图标一个
 ;      45x39 的图案（阈值 68）。亮版图案找到后，还要在图标中心
-;      附近取 6 个背景点验亮度（平均大于 120 才是真亮色），因为
+;      附近取一个 5x5 网格验亮度（亮点过半才是真亮色），因为
 ;      暗版图标顶上有亮边，图案会认错，亮度能把它拦下来。
+;      记下位置后只在记录位置附近（中心 ±60/±50）找，范围收
+;      小了，屏幕别处的亮色误匹配进不来。
 ;      之前用的 ImageSearch 模板图里带了会变的数字和游戏背景角，
 ;      数字一变、背景一换就整张对不上，所以完全找不到；FindText
 ;      只比图案本身的明暗形状，容错 0.1，数字变了也不影响。
@@ -387,13 +389,13 @@ FindPattern(Text, X1, Y1, X2, Y2, &CX, &CY) {
 }
 
 ; 在当前桌面找一个图标：有记录时只在记录位置附近找（中心
-; ±110/±90），这样屏幕别处的误匹配就进不来；没记录时才全屏
+; ±60/±50），这样屏幕别处的误匹配就进不来；没记录时才全屏
 ; 找。找到返回 true，OutX/OutY 是图标中心。
 FindIcon(Pattern, RecX, RecY, &OutX, &OutY) {
     OutX := 0
     OutY := 0
     if (RecX != 0) {
-        return FindPattern(Pattern, RecX - 110, RecY - 90, RecX + 110, RecY + 90, &OutX, &OutY)
+        return FindPattern(Pattern, RecX - 60, RecY - 50, RecX + 60, RecY + 50, &OutX, &OutY)
     }
     return FindPattern(Pattern, 0, 0, A_ScreenWidth, A_ScreenHeight, &OutX, &OutY)
 }
@@ -410,30 +412,34 @@ FindProjector(Idx, &OutX, &OutY) {
     return Found
 }
 
-; 在图标中心附近取 6 个背景点的亮度，平均值大于 120 才是真亮色。
-; 亮版底色是浅蓝（这 6 点平均约 157），暗版底色是深紫（平均约
-; 67，顶上有亮边的那张约 86），阈值 120 两边都留了余量。取色
-; 点避开了双剑、数字、边框和顶上的亮边，只取实心底色。
+; 在图标中心附近取一个 5x5 网格点的亮度，亮点（灰度>120）占一半
+; 以上才是真亮色。亮版底色是浅蓝（亮点约 88%），暗版底色是
+; 深紫（亮点约 16%，顶上有亮边的那张约 32%）。用亮点比例而
+; 不用平均值，单个点落在剑上、数字上、亮边上都不会翻盘。
 IconBright(CX, CY) {
-    Sum := 0
+    Bright := 0
     N := 0
-    for Pt in [[-12, 0], [12, 0], [-14, 8], [14, 8], [-14, -8], [14, -8]] {
-        try {
-            C := PixelGetColor(CX + Pt[1], CY + Pt[2])
-            R := (C >> 16) & 0xFF
-            G := (C >> 8) & 0xFF
-            B := C & 0xFF
-            Sum += (R * 38 + G * 75 + B * 15) // 128
-            N++
-        } catch {
+    for DY in [-10, -5, 0, 5, 10] {
+        for DX in [-16, -8, 0, 8, 16] {
+            try {
+                C := PixelGetColor(CX + DX, CY + DY)
+                R := (C >> 16) & 0xFF
+                G := (C >> 8) & 0xFF
+                B := C & 0xFF
+                if ((R * 38 + G * 75 + B * 15) // 128 > 120) {
+                    Bright++
+                }
+                N++
+            } catch {
+            }
         }
     }
     if (N = 0) {
         return false
     }
-    Avg := Sum // N
-    LogFind("brightness at (" CX "," CY ") avg " Avg)
-    return (Avg > 120)
+    Frac := Bright / N
+    LogFind("brightness at (" CX "," CY ") bright " Bright "/" N " = " Round(Frac, 2))
+    return (Frac > 0.5)
 }
 
 ; 找亮版状态图标（只判断亮色用）：找到亮版图案，还要用背景亮度
