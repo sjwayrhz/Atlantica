@@ -8,44 +8,38 @@
 ; 不会出现两个脚本都抢 F8 的冲突。
 ;
 ; 功能：
-;   1. 桌面轮询（F11）：按 F11 或点按钮启动后，一直重复下面
-;      的循环，停掉之前不会自己停。轮询时每轮按 G，约 0.05 秒
-;      后按 X（空闲阶段除外，只按 X、不按 G）。
+;   1. 桌面轮询（F11）：按 F11 或点按钮启动后，三个桌面一直
+;      轮询切换，停掉之前不会自己停。先检测 30 秒，再一直轮询。
+;      轮询时每轮按 G；只有放映机图标在，才在约 0.05 秒后按 X。
 ;      状态图标是交叉双剑的方形图标：亮版底色浅蓝、暗版底色
-;      深紫，图标里的数字会变，只认图案不看数字。用 FindText
-;      找图标：亮版和暗版各一个 42x35 的黑白图案（阈值 120，
-;      从你发的两张截图转出来的），亮版是浅底深剑、暗版是
-;      深底浅剑，图案本身就区分亮暗，不用再取色。之前用的
-;      ImageSearch 模板图里带了会变的数字和游戏背景角，
-;      数字一变、背景一换就整张对不上，所以完全找不到；
-;      FindText 只比图案本身的明暗形状，容错 0.1，数字变了
-;      也不影响。校准记下图标中心后，只在记录位置附近找。
-;      第 1 步 校准 2 分钟：
-;        轮询按 G、X，同时在每个桌面找状态图标，确认位置正常
-;        并记下图标中心的坐标，光标旁会提示。
-;      第 2 步 转亮 2 分钟：
-;        继续轮询，在 2 分钟内把各桌面的状态图标都点成亮色；
-;        点一下就检查一次，确认变亮才算完成；已经亮了的
-;        桌面不再点。
-;      第 3 步 空闲 40 分钟：
-;        切回桌面 1，继续轮询，但只按 X 不按 G；光标旁一直
-;        显示 40 分钟倒计时；这 40 分钟里一直检查状态图标，
-;        不是亮色的就点成亮色。
-;      第 4 步 转暗 2 分钟：
-;        在 2 分钟内把各桌面的状态图标都点成暗色并确认成功；
-;        这 2 分钟里照样轮询按 G、X。
-;      第 5 步 轮询 15 分钟：
-;        只做轮询按 G、X，不判断状态图标的颜色；
-;        15 分钟结束后把三个桌面的状态图标都点成亮色。
-;      然后重复第 3、4、5 步（空闲 40 分钟 -> 转暗 -> 轮询
-;      15 分钟 -> 转亮），一直循环。
+;      深紫，图标里的数字会变，只认图案不看数字。只判断亮色：
+;      找到亮版图案就是亮色，没找到就当非亮色（暗色），不单
+;      独判断暗色。放映机图标是附件里那张放映机截图（45x39），
+;      它在才说明能按 X、能点状态图标。
+;      用 FindText 找图标：亮版一个 42x35 的黑白图案（阈值 120，
+;      从你发的截图转出来的），亮版是浅底深剑；暗版图案只用来
+;      定位要点的图标位置，不参与亮暗判断。放映机图标一个
+;      45x39 的图案（阈值 68）。之前用的 ImageSearch 模板图
+;      里带了会变的数字和游戏背景角，数字一变、背景一换就整张
+;      对不上，所以完全找不到；FindText 只比图案本身的明暗形状，
+;      容错 0.1，数字变了也不影响。记下图标中心后，只在记录位
+;      置附近找。
+;      第 1 步 检测 30 秒：
+;        轮询按 G，同时在每个桌面找放映机图标和状态图标，记下
+;        各自中心的坐标，光标旁会提示找到没有；这 30 秒不按 X、
+;        不点图标，只检测。
+;      第 2 步 一直轮询：
+;        每轮到一个桌面：按 G；放映机图标在，才按 X（约 0.05
+;        秒后）；放映机图标在、并且状态图标是非亮色，才点状态
+;        图标一下，尝试帮它变亮色。放映机图标不在，就只按 G，
+;        不按 X、不点。状态图标已经是亮色，就不点。一直重复。
 ;      暂停：没有单独的暂停按钮，暂停是自动的——只要你动了
 ;      鼠标或键盘，轮询和开箱子都会马上停下；等你 3 秒没再
-;      动鼠标键盘，就自动从停下的地方继续，阶段计时也跟着停
-;      （比如空闲 40 分钟的倒计时，暂停多久就往后顺延多久）。
-;      脚本自己发的按键和点击不算，不会把自己暂停。想手动
-;      暂停就按 F8，再按一次 F8 继续；F11 是停止（再启动会
-;      从校准重新开始），F9 是全部停止。
+;      动鼠标键盘，就自动从停下的地方继续，检测 30 秒的计时
+;      也跟着停（暂停多久就往后顺延多久）。脚本自己发的按键
+;      和点击不算，不会把自己暂停。想手动暂停就按 F8，再按
+;      一次 F8 继续；F11 是停止（再启动会从检测重新开始），
+;      F9 是全部停止。
 ;   2. 开箱子（两点点击 + 右键点击合并）：
 ;      左边按钮：两种点击同时操作
 ;        两点点击：(700,450) 点一下 -> (822,450) 点一下，循环
@@ -94,51 +88,48 @@ SwitchClickX := 212     ; 每次切换后要点的固定位置
 SwitchClickY := 57
 
 ; ===== 轮询循环（功能 1）的阶段和计时 =====
-; CyclePhase：calibrate 校准 2 分钟 -> toBright 转亮 2 分钟
-;   -> idle 空闲 40 分钟 -> toDark 转暗 2 分钟
-;   -> poll 轮询 15 分钟 -> toBright 转亮 2 分钟 -> idle ...
+; CyclePhase：detect 检测 30 秒 -> main 一直轮询。
 ; DesktopPhase 是每一步的小阶段：switch 切桌面、click212 点
-; 切换后坐标、click 原地点击、press 按 G、pressX 约 0.05 秒后
-; 按 X（空闲阶段不按 G，只按 X），另加 calibCheck 校准检查、
-; toggleCheck 亮暗检查、toggleVerify 点完验证。
+; 切换后坐标、click 原地点击、pressG 按 G、check 检查放映机
+; 图标和状态图标（决定按不按 X、点不点状态图标）。
 CyclePhase := ""
 CycleStart := 0
 CycleCount := 0
 CurrentDesktop := 0
-CalibrateMinutes := 2
-ToggleMinutes := 2
-IdleMinutes := 40
-PollMinutes := 15
-VerifyMs := 800         ; 点完状态图标后等多久再检查是否变色
+DetectSeconds := 30     ; 开头检测多少秒
 ResumeIdleMs := 3000    ; 停止操作多久后自动继续（毫秒）
 ManualPaused := false   ; F8 手动暂停的开关
 PauseStartTick := 0     ; 本次暂停开始的时间，0 表示没在暂停
-; 校准时记下的状态图标中心坐标（下标从 1 开始，对应桌面 1、2、3……）
+; 检测时记下的图标中心坐标（下标从 1 开始，对应桌面 1、2、3……）
 ; 0 表示该桌面还没找到这个点。
-CalStatusX := []
+CalStatusX := []        ; 状态图标（双剑）中心
 CalStatusY := []
+CalProjX := []          ; 放映机图标中心
+CalProjY := []
 CalOK := []
-DoneBright := []        ; 转亮阶段：这个桌面是否已完成
-DoneDark := []          ; 转暗阶段：这个桌面是否已完成
-VerifyDesktop := -1     ; 正在验证的桌面（从 0 开始），-1 表示没有
-VerifyTarget := ""      ; 正在验证的目标："bright" 或 "dark"
 
-; ===== 状态图标（功能 1 用，FindText）=====
-; 交叉双剑的方形图标，亮版底色浅蓝、暗版底色深紫，图标里的
-; 数字会变，只认图案不看数字。两个图案都是 42x35，阈值 120，
-; 从你发的两张截图裁出来的图标方形转的（亮版取 y 7-41、
-; 暗版取 y 2-36，都是 x 3-44，数字在方形外面，没进图案）：
-; 亮版是浅底深剑（暗像素只占约 9%），暗版是深底浅剑（暗像素
-; 约 83%），两个图案几乎是反的，互相认不到对方，所以找到
-; 哪个图案就是哪个状态。FindText 返回的是图案中心，点图标
-; 中心用的就是这个坐标。游戏里图标尺寸变了图案就对不上，
-; 到时把游戏实屏截图发我，按实际尺寸重做图案。
+; ===== 图标图案（功能 1 用，FindText）=====
+; 状态图标：交叉双剑的方形图标，亮版底色浅蓝、暗版底色深紫，
+; 图标里的数字会变，只认图案不看数字。亮版和暗版图案都是
+; 42x35，阈值 120，从你发的两张截图裁出来的图标方形转的
+; （亮版取 y 7-41、暗版取 y 2-36，都是 x 3-44）。亮版是浅底
+; 深剑（暗像素只占约 9%），暗版是深底浅剑（暗像素约 83%），
+; 两个图案几乎是反的，互相认不到对方。亮暗判断只看亮版图案：
+; 找到亮版就是亮色，没找到就当非亮色；暗版图案只用来定位
+; 要点的图标位置，不参与亮暗判断。
+; 放映机图标：附件里那张放映机截图，45x39，阈值 68，整个图
+; 标转的图案，里面没有会变的数字。它在不在，决定按不按 X、
+; 点不点状态图标。
+; FindText 返回的是图案中心，点图标中心用的就是这个坐标。
+; 游戏里图标尺寸变了图案就对不上，到时把游戏实屏截图发我，
+; 按实际尺寸重做图案。
 ; FindErr1/FindErr0 是 FindText 的容错（0.1 = 10%）：找不到
 ; 就调高，认错别的图标就调低。
 FindErr1 := 0.1
 FindErr0 := 0.1
 BrightText := "|<Bright>*120$42.U000001000000000000000000000003zk00003zk10401zU20430z0k041UV1U040kS30040MA6E040A0A004060M004030k00001VU00400H0004000000400M000400Q000000S000000n000001VU000030k0000200000040A000000400000040000E06000000000000000000000000400080000000000000000000001U"
 DarkText := "|<Dark>*120$42.U000001DzzzzzxTvzzzryTszzz7yTsTzy7yTwDzwDyTw7zsDyTz7zszyTzXVlzyTzlSXzyTzsy7zyTzwyDzyTzyETzyTzzAzzyTzzgzzyTzzGzzyTzzVzzyTzzvzzzTzzzzzzTzzzzzyTjzzzxyTjzzzxzTrvzzvzTzu1VzzTzqzSzzTz6zQzzTz63QzzTzrxSzzzzjxSzzzzjxSzzzzixSzzzzj1VzzzzTzzzzzTTzzyzzjzzzxzU"
+ProjectorText := "|<projector>*68$45.Tzzzzzzv0000003Hzzzzzz+TzzzzzxLzwLzzzezz1zzzxLzk7zzzezy0zzzxLzU6T3zezw0s1zxLzU3EHzezw0sERxLzo701zezy0s0DxLzm764rezk0k1axLw084Srez001UCxLk0601zey80y0jxLl00k1jez8006NxLt0007jezUz07zxLz3z0zzezs3y7zxLzU7lzrezwM6DyxLzVs7zzezz7szzxLzwDzzzezzsTzbxLzzszbzezzzkXzxLzzzzzzfTzzzzzzQ000000vzzzzzzzSnk0008I"
 
 ClickMode := ""         ; "" = 未运行，"both" = 两种同时，"right" = 仅右键（抽奖），"two" = 仅两点点击（合成）
 TwoRunning := false
@@ -227,7 +218,7 @@ btnSaveConfig := MyGui.Add("Button", "x132 y365 w115 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", SaveConfig)
 btnExit := MyGui.Add("Button", "x254 y365 w115 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
-MyGui.Add("Text", "x10 y405 w360 h50", "提示：F11 桌面轮询（循环：校准 2 分钟 -> 转亮 2 分钟 -> 空闲 40 分钟 -> 转暗 2 分钟 -> 轮询 15 分钟 -> 转亮，一直重复），F12 开箱子，F9 全部停止（不退出）。动鼠标/键盘会自动暂停，3 秒无操作后自动继续；F8 手动暂停/继续。功能 1 需要同目录下的 VirtualDesktopAccessor.dll 和 FindText.ahk，DLL 版本须匹配 Windows。")
+MyGui.Add("Text", "x10 y405 w360 h50", "提示：F11 桌面轮询（先检测 30 秒，再一直轮询；放映机图标在才按 X、才点非亮色的状态图标），F12 开箱子，F9 全部停止（不退出）。动鼠标/键盘会自动暂停，3 秒无操作后自动继续；F8 手动暂停/继续。功能 1 需要同目录下的 VirtualDesktopAccessor.dll 和 FindText.ahk，DLL 版本须匹配 Windows。")
 MyGui.OnEvent("Close", (*) => ExitApp())
 
 ; DLL 没加载成功时，禁用功能 1，不影响功能 2
@@ -238,15 +229,16 @@ if (DesktopCount < 1) {
 
 MyGui.Show("w380 h460")
 
-; ===== 功能 1：桌面轮询（循环版）=====
-; F11 或点按钮启动：校准 2 分钟 -> 转亮 2 分钟 -> 空闲 40 分钟
-; -> 转暗 2 分钟 -> 轮询 15 分钟 -> 转亮 2 分钟 -> 空闲 40 分钟
-; -> ……一直重复，直到再按 F11 或 F9 停掉。
+; ===== 功能 1：桌面轮询 =====
+; F11 或点按钮启动：先检测 30 秒（轮询按 G，记录放映机图标
+; 和状态图标的位置），再一直轮询，直到再按 F11 或 F9 停掉。
+; 轮询时每轮按 G；放映机图标在，才按 X；放映机图标在、
+; 并且状态图标是非亮色，才点状态图标一下，尝试变亮色。
 ToggleDesktop(*) {
     global DesktopRunning, DesktopPhase, DesktopWaitMs, DesktopKey, SwitchClickX, SwitchClickY
     global btnDesktop, txtDesktopStatus, edtDesktopWait, edtDesktopKey, edtSwitchX, edtSwitchY
     global CyclePhase, CycleStart, CycleCount, DesktopNext, CurrentDesktop, DesktopCount
-    global CalStatusX, CalStatusY, CalOK, DoneBright, DoneDark
+    global CalStatusX, CalStatusY, CalProjX, CalProjY, CalOK
     if (DesktopRunning) {
         DesktopRunning := false
         CyclePhase := ""
@@ -266,22 +258,22 @@ ToggleDesktop(*) {
     SwitchClickY := Integer(edtSwitchY.Value)
     DesktopRunning := true
     CycleCount++
-    ; 校准记录清零，下标从 1 开始，对应桌面 1、2、3……
+    ; 检测记录清零，下标从 1 开始，对应桌面 1、2、3……
     CalStatusX := []
     CalStatusY := []
+    CalProjX := []
+    CalProjY := []
     CalOK := []
-    DoneBright := []
-    DoneDark := []
     Loop DesktopCount {
         CalStatusX.Push(0)
         CalStatusY.Push(0)
+        CalProjX.Push(0)
+        CalProjY.Push(0)
         CalOK.Push(false)
-        DoneBright.Push(false)
-        DoneDark.Push(false)
     }
     DesktopNext := 0
     CurrentDesktop := 0
-    StartCyclePhase("calibrate")
+    StartCyclePhase("detect")
     btnDesktop.Text := "停止：桌面轮询"
     StepDesktop()
 }
@@ -289,68 +281,26 @@ ToggleDesktop(*) {
 ; 切到一个新阶段：记下开始时间，从桌面 1 重新开始轮询。
 StartCyclePhase(NewPhase) {
     global CyclePhase, CycleStart, DesktopPhase, DesktopNext, CurrentDesktop
-    global DoneBright, DoneDark, DesktopCount, txtDesktopStatus, GoToDesktopNumberProc
+    global txtDesktopStatus
     CyclePhase := NewPhase
     CycleStart := A_TickCount
     DesktopPhase := "switch"
     DesktopNext := 0
     CurrentDesktop := 0
     ToolTip()
-    if (NewPhase = "calibrate") {
-        txtDesktopStatus.Text := "状态：校准 2 分钟（轮询按 G，同时记录状态图标坐标）"
-    } else if (NewPhase = "toBright") {
-        DoneBright := []
-        Loop DesktopCount {
-            DoneBright.Push(false)
-        }
-        txtDesktopStatus.Text := "状态：转亮 2 分钟（继续轮询，把状态图标点成亮色）"
-    } else if (NewPhase = "idle") {
-        ; 空闲也要一直检查是否亮色，所以完成记录清零，重新检查。
-        DoneBright := []
-        Loop DesktopCount {
-            DoneBright.Push(false)
-        }
-        DllCall(GoToDesktopNumberProc, "Int", 0)
-        txtDesktopStatus.Text := "状态：空闲 40 分钟（桌面 1，只按 X，继续检查转亮）"
-    } else if (NewPhase = "toDark") {
-        DoneDark := []
-        Loop DesktopCount {
-            DoneDark.Push(false)
-        }
-        txtDesktopStatus.Text := "状态：转暗 2 分钟（继续轮询按 G，把状态图标点成暗色）"
-    } else if (NewPhase = "poll") {
-        txtDesktopStatus.Text := "状态：轮询 15 分钟（只按 G，不判断图标颜色）"
+    if (NewPhase = "detect") {
+        txtDesktopStatus.Text := "状态：检测 30 秒（轮询按 G，记录放映机图标和状态图标位置）"
+    } else if (NewPhase = "main") {
+        txtDesktopStatus.Text := "状态：轮询中（放映机图标在才按 X，非亮色才点状态图标）"
     }
 }
-
 ; 检查当前阶段是否该结束了，结束了就切到下一阶段，返回 true。
+; 检查检测阶段是否结束（30 秒到了就切到一直轮询），返回 true。
 CheckPhaseEnd() {
-    global CyclePhase, CycleStart, CalibrateMinutes, ToggleMinutes, IdleMinutes, PollMinutes
-    global DoneBright, DoneDark
-    Elapsed := A_TickCount - CycleStart
-    if (CyclePhase = "calibrate") {
-        if (Elapsed >= CalibrateMinutes * 60000) {
-            StartCyclePhase("toBright")
-            return true
-        }
-    } else if (CyclePhase = "toBright") {
-        if (AllDone(DoneBright) || Elapsed >= ToggleMinutes * 60000) {
-            StartCyclePhase("idle")
-            return true
-        }
-    } else if (CyclePhase = "idle") {
-        if (Elapsed >= IdleMinutes * 60000) {
-            StartCyclePhase("toDark")
-            return true
-        }
-    } else if (CyclePhase = "toDark") {
-        if (AllDone(DoneDark) || Elapsed >= ToggleMinutes * 60000) {
-            StartCyclePhase("poll")
-            return true
-        }
-    } else if (CyclePhase = "poll") {
-        if (Elapsed >= PollMinutes * 60000) {
-            StartCyclePhase("toBright")
+    global CyclePhase, CycleStart, DetectSeconds
+    if (CyclePhase = "detect") {
+        if (A_TickCount - CycleStart >= DetectSeconds * 1000) {
+            StartCyclePhase("main")
             return true
         }
     }
@@ -367,15 +317,7 @@ FormatMMSS(Ms) {
     return Format("{:02d}:{:02d}", M, S)
 }
 
-; 空闲阶段时在光标提示前面加倒计时，其他阶段返回空串。
-IdlePrefix() {
-    global CyclePhase, CycleStart, IdleMinutes
-    if (CyclePhase != "idle") {
-        return ""
-    }
-    Left := IdleMinutes * 60000 - (A_TickCount - CycleStart)
-    return "Idle " . FormatMMSS(Left) . " - "
-}
+
 
 ; 用户是不是正在用电脑：手动暂停了，或者 ResumeIdleMs 毫秒内
 ; 有过鼠标/键盘操作。A_TimeIdlePhysical 只算真实的物理操作，
@@ -412,12 +354,12 @@ LogFind(Msg) {
     }
 }
 
-; 在指定矩形里找状态图标（FindText）：先找亮版图案，再找暗版图案。
-; 找到返回 "bright" 或 "dark"，CX/CY 是图标中心——FindText 直接
-; 返回图案中心，点图标用的就是这个坐标。都没找到返回 ""。
-; 坐标会夹到屏幕内，FindText 报错（如图案写错）时当没找到处理。
-FindStatusIn(X1, Y1, X2, Y2, &CX, &CY) {
-    global BrightText, DarkText, FindErr1, FindErr0
+; 在指定矩形里用 FindText 找一个图案：找到返回 true，CX/CY 是
+; 图案中心（FindText 直接返回图案中心，点图标用的就是这个
+; 坐标）；没找到返回 false。坐标会夹到屏幕内，FindText 报错
+; （如图案写错）时当没找到处理。
+FindPattern(Text, X1, Y1, X2, Y2, &CX, &CY) {
+    global FindErr1, FindErr0
     CX := 0
     CY := 0
     if (X1 < 0) {
@@ -435,74 +377,68 @@ FindStatusIn(X1, Y1, X2, Y2, &CX, &CY) {
     FX := 0
     FY := 0
     try {
-        if (FindText(&FX, &FY, X1, Y1, X2, Y2, FindErr1, FindErr0, BrightText).Length) {
+        if (FindText(&FX, &FY, X1, Y1, X2, Y2, FindErr1, FindErr0, Text).Length) {
             CX := FX
             CY := FY
-            return "bright"
+            return true
         }
     } catch {
     }
-    try {
-        if (FindText(&FX, &FY, X1, Y1, X2, Y2, FindErr1, FindErr0, DarkText).Length) {
-            CX := FX
-            CY := FY
-            return "dark"
-        }
-    } catch {
-    }
-    return ""
+    return false
 }
 
-; 找当前桌面的状态图标并判断亮暗，返回 "bright"、"dark" 或
-; ""（没找到）。Idx 是桌面序号（从 1 开始），OutX/OutY 是
-; 图标中心（点它用的坐标）。有校准记录时只在记录位置附近
-; 找（中心 ±110/±90），这样屏幕别处的误匹配就进不来；
-; 没记录时才全屏找。亮暗由找到哪个 FindText 图案决定，
-; 不看图标里的数字，也不再取色。
-GetStatus(Idx, &OutX, &OutY) {
-    global CalStatusX, CalStatusY
+; 在当前桌面找一个图标：有记录时只在记录位置附近找（中心
+; ±110/±90），这样屏幕别处的误匹配就进不来；没记录时才全屏
+; 找。找到返回 true，OutX/OutY 是图标中心。
+FindIcon(Pattern, RecX, RecY, &OutX, &OutY) {
     OutX := 0
     OutY := 0
-    Where := ""
-    HasRecord := (Idx >= 1 && Idx <= CalStatusX.Length && CalStatusX[Idx] != 0)
-    if (HasRecord) {
-        CX := CalStatusX[Idx]
-        CY := CalStatusY[Idx]
-        State := FindStatusIn(CX - 110, CY - 90, CX + 110, CY + 90, &OutX, &OutY)
-        Where := "region"
-    } else {
-        State := FindStatusIn(0, 0, A_ScreenWidth, A_ScreenHeight, &OutX, &OutY)
-        Where := "full"
+    if (RecX != 0) {
+        return FindPattern(Pattern, RecX - 110, RecY - 90, RecX + 110, RecY + 90, &OutX, &OutY)
     }
-    if (State = "") {
-        return ""
+    return FindPattern(Pattern, 0, 0, A_ScreenWidth, A_ScreenHeight, &OutX, &OutY)
+}
+
+; 找放映机图标（Idx 是桌面序号，从 1 开始）。
+FindProjector(Idx, &OutX, &OutY) {
+    global ProjectorText, CalProjX, CalProjY
+    RX := (Idx >= 1 && Idx <= CalProjX.Length) ? CalProjX[Idx] : 0
+    RY := (Idx >= 1 && Idx <= CalProjY.Length) ? CalProjY[Idx] : 0
+    Found := FindIcon(ProjectorText, RX, RY, &OutX, &OutY)
+    if (Found) {
+        LogFind("D" . Idx . " projector FOUND (" . OutX . "," . OutY . ")")
     }
-    LogFind("D" . Idx . " icon " . Where . " FOUND (" . OutX . "," . OutY . ") -> " . State)
-    return State
+    return Found
+}
+
+; 找亮版状态图标（只判断亮色用）：找到就是亮色。
+FindBright(Idx, &OutX, &OutY) {
+    global BrightText, CalStatusX, CalStatusY
+    RX := (Idx >= 1 && Idx <= CalStatusX.Length) ? CalStatusX[Idx] : 0
+    RY := (Idx >= 1 && Idx <= CalStatusY.Length) ? CalStatusY[Idx] : 0
+    Found := FindIcon(BrightText, RX, RY, &OutX, &OutY)
+    if (Found) {
+        LogFind("D" . Idx . " icon bright FOUND (" . OutX . "," . OutY . ")")
+    }
+    return Found
+}
+
+; 找暗版状态图标（只用来定位要点的图标，不参与亮暗判断）：
+; 亮版没找到时，用它找非亮色图标在哪，好点它一下。
+FindDark(Idx, &OutX, &OutY) {
+    global DarkText, CalStatusX, CalStatusY
+    RX := (Idx >= 1 && Idx <= CalStatusX.Length) ? CalStatusX[Idx] : 0
+    RY := (Idx >= 1 && Idx <= CalStatusY.Length) ? CalStatusY[Idx] : 0
+    Found := FindIcon(DarkText, RX, RY, &OutX, &OutY)
+    if (Found) {
+        LogFind("D" . Idx . " icon dark FOUND (" . OutX . "," . OutY . ")")
+    }
+    return Found
 }
 
 
-CountDone(DoneList) {
-    global DesktopCount
-    N := 0
-    Loop DesktopCount {
-        if (DoneList[A_Index]) {
-            N++
-        }
-    }
-    return N
-}
-
-AllDone(DoneList) {
-    global DesktopCount
-    if (DesktopCount < 1) {
-        return true
-    }
-    return (CountDone(DoneList) >= DesktopCount)
-}
-
-; 校准进度，如 "D1 OK D2 OK D3 -- "。
-CalibSummary() {
+; 检测进度，如 "D1 OK D2 OK D3 -- "。
+DetectSummary() {
     global DesktopCount, CalOK
     S := ""
     Loop DesktopCount {
@@ -516,10 +452,14 @@ CalibSummary() {
 }
 
 ; 轮询主循环：一个定时器驱动的状态机，每步做完再约下一步。
+; 每轮：切桌面 -> 停 0.5 秒 -> 点 (212,57) -> 停 0.5 秒
+; -> 原地点一下 -> 等 1000 毫秒 -> 按 G -> 约 0.05 秒后
+; 检查（放映机图标在才按 X；放映机图标在、状态图标非亮色
+; 才点状态图标）。检测阶段只记录位置，不按 X、不点图标。
 StepDesktop() {
     global DesktopRunning, CyclePhase, CycleStart, DesktopPhase, DesktopNext, CurrentDesktop
-    global DesktopCount, DesktopKey, DesktopKey2, KeyGapMs, GoToDesktopNumberProc, DesktopWaitMs, SwitchClickX, SwitchClickY
-    global CalibrateMinutes, ToggleMinutes, IdleMinutes, PollMinutes, txtDesktopStatus
+    global DesktopCount, DesktopKey, KeyGapMs, GoToDesktopNumberProc, DesktopWaitMs, SwitchClickX, SwitchClickY
+    global DetectSeconds, txtDesktopStatus
     if (!DesktopRunning) {
         return
     }
@@ -531,23 +471,23 @@ StepDesktop() {
         SetTimer(StepDesktop, 250)
         return
     }
-    ; 先看阶段是否结束（空闲 40 分钟到时间就切到转暗）。
+    ; 先看检测阶段是否结束（30 秒到了就切到一直轮询）。
     if (CheckPhaseEnd()) {
         SetTimer(StepDesktop, 250)
         return
     }
-    ; 空闲阶段：状态栏显示倒计时，其他和轮询一样，只是按 X 不按 G。
-    if (CyclePhase = "idle") {
-        Left := IdleMinutes * 60000 - (A_TickCount - CycleStart)
-        txtDesktopStatus.Text := "状态：空闲 40 分钟，剩余 " FormatMMSS(Left) "（只按 X，继续检查转亮）"
+    ; 检测阶段：状态栏显示倒计时。
+    if (CyclePhase = "detect") {
+        Left := DetectSeconds * 1000 - (A_TickCount - CycleStart)
+        txtDesktopStatus.Text := "状态：检测 30 秒，剩余 " FormatMMSS(Left) "（轮询按 G，记录图标位置）"
     }
     if (DesktopPhase = "switch") {
         CurrentDesktop := DesktopNext
         DllCall(GoToDesktopNumberProc, "Int", CurrentDesktop)
         DesktopNext := Mod(DesktopNext + 1, DesktopCount)
-        if (CyclePhase = "idle") {
-            Left := IdleMinutes * 60000 - (A_TickCount - CycleStart)
-            ToolTip("Idle " FormatMMSS(Left) " left - Desktop " (CurrentDesktop + 1))
+        if (CyclePhase = "detect") {
+            Left := DetectSeconds * 1000 - (A_TickCount - CycleStart)
+            ToolTip("Detect " FormatMMSS(Left) " left - Desktop " (CurrentDesktop + 1))
         }
         DesktopPhase := "click212"
         SetTimer(StepDesktop, 500)   ; 切换后先停 0.5 秒
@@ -557,139 +497,109 @@ StepDesktop() {
         SetTimer(StepDesktop, 500)   ; 点完再停 0.5 秒
     } else if (DesktopPhase = "click") {
         Click()
-        DesktopPhase := "press"
+        DesktopPhase := "pressG"
         SetTimer(StepDesktop, DesktopWaitMs)
-    } else if (DesktopPhase = "press") {
-        if (CyclePhase = "idle") {
-            ; 空闲只按 X，不按 G。
-            Send(DesktopKey2)
-            DesktopPhase := "toggleCheck"
-            SetTimer(StepDesktop, 300)
+    } else if (DesktopPhase = "pressG") {
+        Send(DesktopKey)    ; 按 G
+        DesktopPhase := "check"
+        SetTimer(StepDesktop, KeyGapMs)   ; 约 0.05 秒后检查
+    } else if (DesktopPhase = "check") {
+        if (CyclePhase = "detect") {
+            DetectStep()
         } else {
-            Send(DesktopKey)    ; 先按 G
-            DesktopPhase := "pressX"
-            SetTimer(StepDesktop, KeyGapMs)   ; 约 0.05 秒后按 X
+            CheckStep()
         }
-    } else if (DesktopPhase = "pressX") {
-        ; 按完 G 约 0.05 秒后按 X。
-        Send(DesktopKey2)
-        if (CyclePhase = "calibrate") {
-            DesktopPhase := "calibCheck"
-            SetTimer(StepDesktop, 300)
-        } else if (CyclePhase = "toBright" || CyclePhase = "toDark") {
-            DesktopPhase := "toggleCheck"
-            SetTimer(StepDesktop, 300)
-        } else {
-            ; poll 阶段：只轮询，不检查图标。
-            DesktopPhase := "switch"
-            SetTimer(StepDesktop, DesktopWaitMs)
-        }
-    } else if (DesktopPhase = "calibCheck") {
-        CalibCheckStep()
-    } else if (DesktopPhase = "toggleCheck") {
-        ToggleCheckStep()
-    } else if (DesktopPhase = "toggleVerify") {
-        ToggleVerifyStep()
     }
 }
 
-; 校准检查：每轮到一个桌面就找一次状态图标，
-; 找到就记下图标中心坐标，光标旁提示找到的位置。
-; 校准检查：每轮到一个桌面就找一次状态图标，
-; 找到就记下图标中心坐标，光标旁提示找到的位置。
-CalibCheckStep() {
+; 检测检查：每轮到一个桌面就找一次放映机图标和状态图标，
+; 找到就记下各自中心坐标，光标旁提示找到没有。这 30 秒
+; 只检测，不按 X、不点图标。
+DetectStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, txtDesktopStatus
-    global CalStatusX, CalStatusY, CalOK
-    global CycleStart, CalibrateMinutes
+    global CalStatusX, CalStatusY, CalProjX, CalProjY, CalOK
+    global CycleStart, DetectSeconds
     Idx := CurrentDesktop + 1
-    CX := 0
-    CY := 0
-    State := GetStatus(Idx, &CX, &CY)
-    if (State != "") {
-        CalStatusX[Idx] := CX
-        CalStatusY[Idx] := CY
+    PX := 0
+    PY := 0
+    ProjFound := FindProjector(Idx, &PX, &PY)
+    if (ProjFound) {
+        CalProjX[Idx] := PX
+        CalProjY[Idx] := PY
+    }
+    BX := 0
+    BY := 0
+    BrightFound := FindBright(Idx, &BX, &BY)
+    State := ""
+    if (BrightFound) {
+        CalStatusX[Idx] := BX
+        CalStatusY[Idx] := BY
+        State := "bright"
+    } else {
+        DX := 0
+        DY := 0
+        if (FindDark(Idx, &DX, &DY)) {
+            CalStatusX[Idx] := DX
+            CalStatusY[Idx] := DY
+            State := "non-bright"
+        } else {
+            State := "not found"
+        }
     }
     CalOK[Idx] := (CalStatusX[Idx] != 0)
-    Left := CalibrateMinutes * 60000 - (A_TickCount - CycleStart)
-    if (State != "") {
-        ToolTip("Desktop " Idx ": Status (" CalStatusX[Idx] ", " CalStatusY[Idx] ") " State " OK")
-    } else {
-        ToolTip("Desktop " Idx ": Status not found")
-    }
-    txtDesktopStatus.Text := "状态：校准 2 分钟，剩余 " FormatMMSS(Left) " - " CalibSummary()
+    Left := DetectSeconds * 1000 - (A_TickCount - CycleStart)
+    ToolTip("Desktop " Idx ": projector " (ProjFound ? "yes" : "no") ", status " State)
+    txtDesktopStatus.Text := "状态：检测 30 秒，剩余 " FormatMMSS(Left) " - " DetectSummary()
     DesktopPhase := "switch"
     SetTimer(StepDesktop, DesktopWaitMs)
 }
 
-
-; 亮暗检查：每轮到一个桌面就检查一次，决定要不要点。
-; 空闲阶段目标也是亮色，但不跳过已完成的桌面，每轮都重新检查。
-; 亮暗检查：每轮到一个桌面就检查一次，决定要不要点。
-; 空闲阶段目标也是亮色，但不跳过已完成的桌面，每轮都重新检查。
-ToggleCheckStep() {
-    global CurrentDesktop, DesktopPhase, DesktopWaitMs, CyclePhase, VerifyDesktop, VerifyTarget
-    global DoneBright, DoneDark, CalStatusX, CalStatusY, VerifyMs
+; 轮询检查：每轮到一个桌面就按下面规则做。
+;   1. 放映机图标在，才按 X；不在就不按 X，只按 G。
+;   2. 只判断亮色：找到亮版图案就是亮色，不点；
+;      没找到就当非亮色。
+;   3. 放映机图标在、并且是非亮色，才点状态图标一下，
+;      尝试帮它变亮色；点完下轮再来检查，不单独验证。
+CheckStep() {
+    global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey2
+    global CalStatusX, CalStatusY, CalProjX, CalProjY
     Idx := CurrentDesktop + 1
-    Prefix := IdlePrefix()
-    Target := (CyclePhase = "toDark") ? "dark" : "bright"
-    DoneList := (Target = "bright") ? DoneBright : DoneDark
-    ; 转亮 / 转暗阶段：这个桌面本阶段已完成就跳过，不点。
-    ; 空闲阶段不跳过，每轮都重新检查是不是亮色。
-    if (CyclePhase != "idle" && DoneList[Idx]) {
-        ToolTip(Prefix "Desktop " Idx ": already " Target)
+    PX := 0
+    PY := 0
+    ProjFound := FindProjector(Idx, &PX, &PY)
+    if (ProjFound) {
+        CalProjX[Idx] := PX
+        CalProjY[Idx] := PY
+        Send(DesktopKey2)   ; 放映机图标在，才按 X
+    }
+    BX := 0
+    BY := 0
+    if (FindBright(Idx, &BX, &BY)) {
+        ; 已经是亮色，不点。
+        CalStatusX[Idx] := BX
+        CalStatusY[Idx] := BY
+        ToolTip("Desktop " Idx ": projector " (ProjFound ? "yes" : "no") ", bright, no click")
         DesktopPhase := "switch"
         SetTimer(StepDesktop, DesktopWaitMs)
         return
     }
-    CX := 0
-    CY := 0
-    State := GetStatus(Idx, &CX, &CY)
-    if (State = Target) {
-        DoneList[Idx] := true
-        ToolTip(Prefix "Desktop " Idx ": already " Target)
+    ; 非亮色：放映机图标不在就不点（只按了 G）。
+    if (!ProjFound) {
+        ToolTip("Desktop " Idx ": projector no, non-bright, no X, no click")
         DesktopPhase := "switch"
         SetTimer(StepDesktop, DesktopWaitMs)
         return
     }
-    if (State = "") {
-        ToolTip(Prefix "Desktop " Idx ": no status icon found, retry later")
-        DesktopPhase := "switch"
-        SetTimer(StepDesktop, DesktopWaitMs)
-        return
-    }
-    ; 状态是反的，点它一下（优先点校准时记下的坐标，
-    ; 没有才点这次找到的位置），等 0.8 秒再验证。
-    if (CalStatusX[Idx] != 0) {
-        Click(CalStatusX[Idx], CalStatusY[Idx])
+    ; 放映机图标在、并且非亮色：点状态图标一下，尝试变亮色。
+    DX := 0
+    DY := 0
+    if (FindDark(Idx, &DX, &DY)) {
+        CalStatusX[Idx] := DX
+        CalStatusY[Idx] := DY
+        Click(DX, DY)
+        ToolTip("Desktop " Idx ": projector yes, non-bright, clicked to bright")
     } else {
-        Click(CX, CY)
-    }
-    VerifyDesktop := CurrentDesktop
-    VerifyTarget := Target
-    DesktopPhase := "toggleVerify"
-    SetTimer(StepDesktop, VerifyMs)
-    ToolTip(Prefix "Desktop " Idx ": clicked " State ", verifying")
-}
-
-
-; 点完验证：等 0.8 秒后再找一次目标颜色，找到了才算完成。
-; 点完验证：等 0.8 秒后再找一次目标颜色，找到了才算完成。
-ToggleVerifyStep() {
-    global VerifyDesktop, VerifyTarget, DoneBright, DoneDark, DesktopPhase, DesktopWaitMs
-    Idx := VerifyDesktop + 1
-    Prefix := IdlePrefix()
-    CX := 0
-    CY := 0
-    State := GetStatus(Idx, &CX, &CY)
-    if (State = VerifyTarget) {
-        if (VerifyTarget = "bright") {
-            DoneBright[Idx] := true
-        } else {
-            DoneDark[Idx] := true
-        }
-        ToolTip(Prefix "Desktop " Idx ": now " VerifyTarget)
-    } else {
-        ToolTip(Prefix "Desktop " Idx ": not " VerifyTarget " yet, will retry")
+        ToolTip("Desktop " Idx ": projector yes, non-bright, icon not found, no click")
     }
     DesktopPhase := "switch"
     SetTimer(StepDesktop, DesktopWaitMs)
