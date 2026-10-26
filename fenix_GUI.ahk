@@ -128,6 +128,7 @@ CalProjX := []          ; 放映机图标中心
 CalProjY := []
 CalOK := []
 CheckProjFound := false ; 这轮检查：放映机图标在不在（check 步记下，pressX 步用）
+CheckStatusNotFound := false ; 这轮检查：状态图标是不是都没找到（check 步记下，pressX 步用）
 
 ; ===== 图标图案（功能 1 用，FindText）=====
 ; 状态图标：交叉双剑的方形图标，亮版底色浅蓝、暗版底色深紫，
@@ -707,6 +708,7 @@ DetectStep() {
     DY := 0
     DarkFound := FindDark(Idx, &DX, &DY)
     UnknownFound := false
+    BrightFound := false
     if (!DarkFound) {
         UX := 0
         UY := 0
@@ -726,7 +728,8 @@ DetectStep() {
     } else {
         BX := 0
         BY := 0
-        if (FindBright(Idx, &BX, &BY)) {
+        BrightFound := FindBright(Idx, &BX, &BY)
+        if (BrightFound) {
             CalStatusX[Idx] := BX
             CalStatusY[Idx] := BY
             State := "non-dark"
@@ -735,15 +738,19 @@ DetectStep() {
         }
     }
     CalOK[Idx] := (CalStatusX[Idx] != 0)
-    ; 检测阶段也按轮询的规则按 G/X，只是绝不点图标。
-    ; 未知图标也按 G 和 X，但不点。
-    if (ProjFound && !DarkFound && !UnknownFound) {
+    StatusNotFound := (!DarkFound && !UnknownFound && !BrightFound)
+    ; 检测阶段也按轮询的规则按 G/X。放映机在 + 状态没找到时，也按 G、
+    ; 按 X、点一下记下的状态图标位置（有记下位置才点）。
+    if (ProjFound && !DarkFound && !UnknownFound && !StatusNotFound) {
         Send(DesktopKey2)   ; 放映机图标在、并且是非暗色，只按 X、不按 G
     } else {
         Send(DesktopKey)    ; 其他情况按 G
         if (ProjFound) {
             Sleep(KeyGapMs)
             Send(DesktopKey2)   ; 放映机图标在，约 0.05 秒后按 X
+        }
+        if (ProjFound && StatusNotFound && CalStatusX[Idx] != 0) {
+            Click(CalStatusX[Idx], CalStatusY[Idx])
         }
     }
     Left := DetectSeconds * 1000 - (A_TickCount - CycleStart)
@@ -755,15 +762,18 @@ DetectStep() {
 
 ; 轮询检查：每轮到一个桌面就先找放映机图标和状态图标，
 ; 再按下面规则做。三种状态：暗色（暗版图案找到）、未知
-; （未知图案找到）、非暗色（两个都没找到，就当亮色）。
+; （未知图案找到）、非暗色（亮版图案找到）；都没找到就是
+; 状态没找到（not found）。
 ;   1. 放映机图标在、并且是非暗色：只按 X，不按 G，不点。
 ;   2. 未知：按 G；放映机图标在，才在约 0.05 秒后按 X；不点图标。
 ;   3. 暗色：按 G；放映机图标在，才在约 0.05 秒后按 X；
 ;      放映机图标在，才点状态图标一下，尝试帮它变亮色；
 ;      点完下轮再来检查，不单独验证。
+;   4. 状态没找到：放映机图标在时，按 G、按 X，点一下记下的
+;      状态图标位置（有记下位置才点）；放映机不在就只按 G。
 MainCheckStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey, DesktopKey2, KeyGapMs
-    global CalStatusX, CalStatusY, CalProjX, CalProjY, CheckProjFound
+    global CalStatusX, CalStatusY, CalProjX, CalProjY, CheckProjFound, CheckStatusNotFound
     Idx := CurrentDesktop + 1
     PX := 0
     PY := 0
@@ -777,6 +787,7 @@ MainCheckStep() {
     DY := 0
     DarkFound := FindDark(Idx, &DX, &DY)
     UnknownFound := false
+    BrightFound := false
     if (DarkFound) {
         CalStatusX[Idx] := DX
         CalStatusY[Idx] := DY
@@ -792,13 +803,15 @@ MainCheckStep() {
             ; 下次找暗版时只在附近找，范围小、不容易认错别处。
             BX := 0
             BY := 0
-            if (FindBright(Idx, &BX, &BY)) {
+            BrightFound := FindBright(Idx, &BX, &BY)
+            if (BrightFound) {
                 CalStatusX[Idx] := BX
                 CalStatusY[Idx] := BY
             }
         }
     }
-    if (ProjFound && !DarkFound && !UnknownFound) {
+    CheckStatusNotFound := (!DarkFound && !UnknownFound && !BrightFound)
+    if (ProjFound && !DarkFound && !UnknownFound && !CheckStatusNotFound) {
         ; 放映机图标在、并且是非暗色（亮色）：只按 X，不按 G，不点。
         Send(DesktopKey2)
         ToolTip("Desktop " Idx ": projector yes, non-dark, X only, no G, no click")
@@ -806,7 +819,7 @@ MainCheckStep() {
         SetTimer(StepDesktop, DesktopWaitMs)
         return
     }
-    ; 其他情况：按 G，约 0.05 秒后到 pressX 步（放映机图标在才按 X）。
+    ; 暗色、未知、状态没找到：按 G，约 0.05 秒后到 pressX 步（放映机图标在才按 X）。
     Send(DesktopKey)
     DesktopPhase := "pressX"
     SetTimer(StepDesktop, KeyGapMs)
@@ -814,11 +827,12 @@ MainCheckStep() {
 
 ; 按 X 和点图标（轮询检查的下一步，约 0.05 秒后）。
 ; 放映机图标在才按 X；放映机图标在、并且是暗色，才点
-; 状态图标一下，未知图标不点。这里找暗版图案是再确认一次：
-; 按完 G 之后如果图标已经变亮了（非暗色），暗版图案就找不到了，
+; 状态图标一下，未知图标不点；状态没找到时点一下记下的
+; 状态图标位置。这里找暗版图案是再确认一次：按完 G 之后
+; 如果图标已经变亮了（非暗色），暗版图案就找不到了，
 ; 也就不会点错；未知图标也不会被暗版图案认到，所以不会点错。
 PressXStep() {
-    global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey2, CheckProjFound
+    global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey2, CheckProjFound, CheckStatusNotFound
     global CalStatusX, CalStatusY
     Idx := CurrentDesktop + 1
     if (!CheckProjFound) {
@@ -829,7 +843,19 @@ PressXStep() {
         return
     }
     Send(DesktopKey2)   ; 放映机图标在，才按 X
-    ; 到这里是暗色或未知（非暗色的话检查步已经只按 X、直接回去了）。
+    ; 到这里是暗色、未知或状态没找到（非暗色的话检查步已经只按 X、直接回去了）。
+    if (CheckStatusNotFound) {
+        ; 状态没找到：点一下记下的状态图标位置（有记下位置才点）。
+        if (CalStatusX[Idx] != 0) {
+            Click(CalStatusX[Idx], CalStatusY[Idx])
+            ToolTip("Desktop " Idx ": projector yes, status not found, clicked recorded pos")
+        } else {
+            ToolTip("Desktop " Idx ": projector yes, status not found, no recorded pos, no click")
+        }
+        DesktopPhase := "switch"
+        SetTimer(StepDesktop, DesktopWaitMs)
+        return
+    }
     ; 再找暗版图案确认一次：按完 G 之后如果图标已经变亮了，
     ; 暗版图案就找不到了，也就不会点错；未知图标不点。
     DX := 0
