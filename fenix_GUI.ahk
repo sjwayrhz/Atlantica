@@ -840,7 +840,16 @@ PressXStep() {
         Click(DX, DY)
         ToolTip("Desktop " Idx ": projector yes, dark, clicked to bright")
     } else {
-        ToolTip("Desktop " Idx ": projector yes, not dark, no click")
+        ; 暗版没找到：再看是不是未知（未知不点）；都不是就是按完 G 变亮了，也不点。
+        UX := 0
+        UY := 0
+        if (FindUnknown(Idx, &UX, &UY)) {
+            CalStatusX[Idx] := UX
+            CalStatusY[Idx] := UY
+            ToolTip("Desktop " Idx ": projector yes, unknown, no click")
+        } else {
+            ToolTip("Desktop " Idx ": projector yes, not dark, no click")
+        }
     }
     DesktopPhase := "switch"
     SetTimer(StepDesktop, DesktopWaitMs)
