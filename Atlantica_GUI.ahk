@@ -9,21 +9,24 @@
 ;
 ; 功能：
 ;   1. 桌面轮询（F11）：按 F11 或点按钮启动后，一直重复下面
-;      的循环，停掉之前不会自己停：
+;      的循环，停掉之前不会自己停。轮询时每轮按 G，约 0.05 秒
+;      后再按 X（空闲阶段除外，只按 X，不按 G）。
 ;      第 1 步 校准 2 分钟：
-;        轮询按 G，同时在每个桌面找等待图标和状态按钮，
+;        轮询按 G、X，同时在每个桌面找等待图标和状态按钮，
 ;        确认位置正常并记下两个点的坐标，光标旁会提示。
 ;      第 2 步 转亮 2 分钟：
 ;        继续轮询，在 2 分钟内把各桌面的状态按钮都点成亮色；
 ;        点一下就检查一次，确认变亮才算完成；已经亮了的
 ;        桌面不再点；等待图标还在时不点，等它走了再试。
 ;      第 3 步 空闲 40 分钟：
-;        切回桌面 1，什么都不做，光标旁一直显示 40 分钟倒计时。
+;        切回桌面 1，继续轮询，但只按 X 不按 G；光标旁一直
+;        显示 40 分钟倒计时；这 40 分钟里一直检查状态按钮，
+;        不是亮色的就点成亮色。
 ;      第 4 步 转暗 2 分钟：
 ;        在 2 分钟内把各桌面的状态按钮都点成暗色并确认成功；
-;        这 2 分钟里照样轮询按 G。
+;        这 2 分钟里照样轮询按 G、X。
 ;      第 5 步 轮询 15 分钟：
-;        只做轮询按 G，不判断等待图标和状态按钮的颜色；
+;        只做轮询按 G、X，不判断等待图标和状态按钮的颜色；
 ;        15 分钟结束后把三个桌面的状态按钮都点成亮色。
 ;      然后重复第 3、4、5 步（空闲 40 分钟 -> 转暗 -> 轮询
 ;      15 分钟 -> 转亮），一直循环。
@@ -68,6 +71,8 @@ DesktopNext := 0        ; 下一个要去的桌面（从 0 开始，即桌面 1�
 DesktopPhase := "switch"
 DesktopWaitMs := 1000
 DesktopKey := "g"
+DesktopKey2 := "x"      ; 每次按 G 后再按的第二个键
+KeyGapMs := 50          ; 按 G 和按 X 之间相隔的毫秒数（约 0.05 秒）
 SwitchClickX := 212     ; 每次切换后要点的固定位置
 SwitchClickY := 57
 
@@ -76,8 +81,9 @@ SwitchClickY := 57
 ;   -> idle 空闲 40 分钟 -> toDark 转暗 2 分钟
 ;   -> poll 轮询 15 分钟 -> toBright 转亮 2 分钟 -> idle ...
 ; DesktopPhase 是每一步的小阶段：switch 切桌面、click212 点
-; 切换后坐标、click 原地点击、press 按 G，另加 calibCheck
-; 校准检查、toggleCheck 亮暗检查、toggleVerify 点完验证。
+; 切换后坐标、click 原地点击、press 按 G、pressX 约 0.05 秒后
+; 按 X（空闲阶段不按 G，只按 X），另加 calibCheck 校准检查、
+; toggleCheck 亮暗检查、toggleVerify 点完验证。
 CyclePhase := ""
 CycleStart := 0
 CycleCount := 0
@@ -280,8 +286,13 @@ StartCyclePhase(NewPhase) {
         }
         txtDesktopStatus.Text := "状态：转亮 2 分钟（继续轮询，把状态按钮点成亮色）"
     } else if (NewPhase = "idle") {
+        ; 空闲也要一直检查是否亮色，所以完成记录清零，重新检查。
+        DoneBright := []
+        Loop DesktopCount {
+            DoneBright.Push(false)
+        }
         DllCall(GoToDesktopNumberProc, "Int", 0)
-        txtDesktopStatus.Text := "状态：空闲 40 分钟（桌面 1，不做任何操作）"
+        txtDesktopStatus.Text := "状态：空闲 40 分钟（桌面 1，只按 X，继续检查转亮）"
     } else if (NewPhase = "toDark") {
         DoneDark := []
         Loop DesktopCount {
@@ -335,6 +346,16 @@ FormatMMSS(Ms) {
     M := Ms // 60000
     S := Mod(Ms // 1000, 60)
     return Format("{:02d}:{:02d}", M, S)
+}
+
+; 空闲阶段时在光标提示前面加倒计时，其他阶段返回空串。
+IdlePrefix() {
+    global CyclePhase, CycleStart, IdleMinutes
+    if (CyclePhase != "idle") {
+        return ""
+    }
+    Left := IdleMinutes * 60000 - (A_TickCount - CycleStart)
+    return "Idle " . FormatMMSS(Left) . " - "
 }
 
 ; 全屏找一个 FindText 图案，找到返回 true，OutX/OutY 是图案中心。
@@ -403,34 +424,29 @@ CalibSummary() {
 ; 轮询主循环：一个定时器驱动的状态机，每步做完再约下一步。
 StepDesktop() {
     global DesktopRunning, CyclePhase, CycleStart, DesktopPhase, DesktopNext, CurrentDesktop
-    global DesktopCount, DesktopKey, GoToDesktopNumberProc, DesktopWaitMs, SwitchClickX, SwitchClickY
+    global DesktopCount, DesktopKey, DesktopKey2, KeyGapMs, GoToDesktopNumberProc, DesktopWaitMs, SwitchClickX, SwitchClickY
     global CalibrateMinutes, ToggleMinutes, IdleMinutes, PollMinutes, txtDesktopStatus
     if (!DesktopRunning) {
         return
     }
-    ; 空闲阶段：只显示倒计时，不轮询不找图。
-    if (CyclePhase = "idle") {
-        Elapsed := A_TickCount - CycleStart
-        Left := IdleMinutes * 60000 - Elapsed
-        ToolTip("Idle " FormatMMSS(Left) " left - Desktop 1")
-        txtDesktopStatus.Text := "状态：空闲 40 分钟，剩余 " FormatMMSS(Left) "（桌面 1，不做任何操作）"
-        if (Elapsed >= IdleMinutes * 60000) {
-            StartCyclePhase("toDark")
-            SetTimer(StepDesktop, 250)
-        } else {
-            SetTimer(StepDesktop, 1000)
-        }
-        return
-    }
-    ; 其他阶段：先看阶段是否结束。
+    ; 先看阶段是否结束（空闲 40 分钟到时间就切到转暗）。
     if (CheckPhaseEnd()) {
         SetTimer(StepDesktop, 250)
         return
+    }
+    ; 空闲阶段：状态栏显示倒计时，其他和轮询一样，只是按 X 不按 G。
+    if (CyclePhase = "idle") {
+        Left := IdleMinutes * 60000 - (A_TickCount - CycleStart)
+        txtDesktopStatus.Text := "状态：空闲 40 分钟，剩余 " FormatMMSS(Left) "（只按 X，继续检查转亮）"
     }
     if (DesktopPhase = "switch") {
         CurrentDesktop := DesktopNext
         DllCall(GoToDesktopNumberProc, "Int", CurrentDesktop)
         DesktopNext := Mod(DesktopNext + 1, DesktopCount)
+        if (CyclePhase = "idle") {
+            Left := IdleMinutes * 60000 - (A_TickCount - CycleStart)
+            ToolTip("Idle " FormatMMSS(Left) " left - Desktop " (CurrentDesktop + 1))
+        }
         DesktopPhase := "click212"
         SetTimer(StepDesktop, 500)   ; 切换后先停 0.5 秒
     } else if (DesktopPhase = "click212") {
@@ -442,7 +458,17 @@ StepDesktop() {
         DesktopPhase := "press"
         SetTimer(StepDesktop, DesktopWaitMs)
     } else if (DesktopPhase = "press") {
-        Send(DesktopKey)
+        if (CyclePhase = "idle") {
+            Send(DesktopKey2)   ; 空闲只按 X，不按 G
+            DesktopPhase := "toggleCheck"
+            SetTimer(StepDesktop, 300)
+        } else {
+            Send(DesktopKey)    ; 先按 G
+            DesktopPhase := "pressX"
+            SetTimer(StepDesktop, KeyGapMs)   ; 约 0.05 秒后按 X
+        }
+    } else if (DesktopPhase = "pressX") {
+        Send(DesktopKey2)       ; 再按 X
         if (CyclePhase = "calibrate") {
             DesktopPhase := "calibCheck"
             SetTimer(StepDesktop, 300)
@@ -513,22 +539,25 @@ CalibCheckStep() {
 }
 
 ; 亮暗检查：每轮到一个桌面就检查一次，决定要不要点。
+; 空闲阶段目标也是亮色，但不跳过已完成的桌面，每轮都重新检查。
 ToggleCheckStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, CyclePhase, VerifyDesktop, VerifyTarget
     global DoneBright, DoneDark, CalStatusX, CalStatusY, CenterOffsetY, VerifyMs
     Idx := CurrentDesktop + 1
-    Target := (CyclePhase = "toBright") ? "bright" : "dark"
+    Prefix := IdlePrefix()
+    Target := (CyclePhase = "toDark") ? "dark" : "bright"
     DoneList := (Target = "bright") ? DoneBright : DoneDark
-    ; 这个桌面本阶段已完成：跳过，不点。
-    if (DoneList[Idx]) {
-        ToolTip("Desktop " Idx ": already " Target)
+    ; 转亮 / 转暗阶段：这个桌面本阶段已完成就跳过，不点。
+    ; 空闲阶段不跳过，每轮都重新检查是不是亮色。
+    if (CyclePhase != "idle" && DoneList[Idx]) {
+        ToolTip(Prefix "Desktop " Idx ": already " Target)
         DesktopPhase := "switch"
         SetTimer(StepDesktop, DesktopWaitMs)
         return
     }
     ; 等待图标还在：状态按钮没出来，不点，下一轮再试。
     if (IsBlockerPresent()) {
-        ToolTip("Desktop " Idx ": Wait icon present, skip this pass")
+        ToolTip(Prefix "Desktop " Idx ": Wait icon present, skip this pass")
         DesktopPhase := "switch"
         SetTimer(StepDesktop, DesktopWaitMs)
         return
@@ -538,7 +567,7 @@ ToggleCheckStep() {
         BY := 0
         if (IsBrightPresent(&BX, &BY)) {
             DoneBright[Idx] := true
-            ToolTip("Desktop " Idx ": already bright")
+            ToolTip(Prefix "Desktop " Idx ": already bright")
             DesktopPhase := "switch"
             SetTimer(StepDesktop, DesktopWaitMs)
             return
@@ -556,10 +585,10 @@ ToggleCheckStep() {
             VerifyTarget := "bright"
             DesktopPhase := "toggleVerify"
             SetTimer(StepDesktop, VerifyMs)
-            ToolTip("Desktop " Idx ": clicked dark, verifying")
+            ToolTip(Prefix "Desktop " Idx ": clicked dark, verifying")
             return
         }
-        ToolTip("Desktop " Idx ": no status icon found, retry later")
+        ToolTip(Prefix "Desktop " Idx ": no status icon found, retry later")
         DesktopPhase := "switch"
         SetTimer(StepDesktop, DesktopWaitMs)
         return
@@ -569,7 +598,7 @@ ToggleCheckStep() {
     DY := 0
     if (IsDarkPresent(&DX, &DY)) {
         DoneDark[Idx] := true
-        ToolTip("Desktop " Idx ": already dark")
+        ToolTip(Prefix "Desktop " Idx ": already dark")
         DesktopPhase := "switch"
         SetTimer(StepDesktop, DesktopWaitMs)
         return
@@ -586,10 +615,10 @@ ToggleCheckStep() {
         VerifyTarget := "dark"
         DesktopPhase := "toggleVerify"
         SetTimer(StepDesktop, VerifyMs)
-        ToolTip("Desktop " Idx ": clicked bright, verifying")
+        ToolTip(Prefix "Desktop " Idx ": clicked bright, verifying")
         return
     }
-    ToolTip("Desktop " Idx ": no status icon found, retry later")
+    ToolTip(Prefix "Desktop " Idx ": no status icon found, retry later")
     DesktopPhase := "switch"
     SetTimer(StepDesktop, DesktopWaitMs)
 }
@@ -598,23 +627,24 @@ ToggleCheckStep() {
 ToggleVerifyStep() {
     global VerifyDesktop, VerifyTarget, DoneBright, DoneDark, DesktopPhase, DesktopWaitMs
     Idx := VerifyDesktop + 1
+    Prefix := IdlePrefix()
     if (VerifyTarget = "bright") {
         BX := 0
         BY := 0
         if (IsBrightPresent(&BX, &BY)) {
             DoneBright[Idx] := true
-            ToolTip("Desktop " Idx ": now bright")
+            ToolTip(Prefix "Desktop " Idx ": now bright")
         } else {
-            ToolTip("Desktop " Idx ": not bright yet, will retry")
+            ToolTip(Prefix "Desktop " Idx ": not bright yet, will retry")
         }
     } else {
         DX := 0
         DY := 0
         if (IsDarkPresent(&DX, &DY)) {
             DoneDark[Idx] := true
-            ToolTip("Desktop " Idx ": now dark")
+            ToolTip(Prefix "Desktop " Idx ": now dark")
         } else {
-            ToolTip("Desktop " Idx ": not dark yet, will retry")
+            ToolTip(Prefix "Desktop " Idx ": not dark yet, will retry")
         }
     }
     DesktopPhase := "switch"
