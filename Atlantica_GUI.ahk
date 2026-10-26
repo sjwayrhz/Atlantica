@@ -2,13 +2,6 @@
 #SingleInstance Force
 #Include FindText.ahk
 
-; 强制装鼠标/键盘底层钩子：不加的话，脚本只有键盘热键（F8/F9/
-; F11/F12），只装键盘钩子不装鼠标钩子，A_TimeIdlePhysical 就
-; 看不到鼠标移动，动鼠标就不会暂停。加了这两行，鼠标和键盘
-; 的物理操作都会被认出来，暂停才管用。
-#InstallMouseHook
-#InstallKeybdHook
-
 ; ============================================================
 ; Atlantica 功能菜单（图形界面版，AHK v2）
 ; 原来的两个脚本已经合并到这一个窗口里，
@@ -43,13 +36,10 @@
 ;        机图标在才在约 0.05 秒后按 X；放映机图标在、并且状态
 ;        图标是非亮色，才点状态图标一下，尝试帮它变亮色。放映
 ;        机图标不在，就只按 G，不按 X、不点。一直重复。
-;      暂停：没有单独的暂停按钮，暂停是自动的——只要你动了
-;      鼠标或键盘，轮询和开箱子都会马上停下；等你 3 秒没再
-;      动鼠标键盘，就自动从停下的地方继续，检测 15 秒的计时
-;      也跟着停（暂停多久就往后顺延多久）。脚本自己发的按键
-;      和点击不算，不会把自己暂停。想手动暂停就按 F8，再按
-;      一次 F8 继续；F11 是停止（再启动会从检测重新开始），
-;      F9 是全部停止。
+;      暂停：按 F8 手动暂停（轮询和开箱子都停），再按一次
+;      F8 继续；检测 15 秒的计时暂停时也跟着停（暂停多久
+;      就往后顺延多久）。F11 是停止（再启动会从检测重新
+;      开始），F9 是全部停止。
 ;   2. 开箱子（两点点击 + 右键点击合并）：
 ;      左边按钮：两种点击同时操作
 ;        两点点击：(700,450) 点一下 -> (822,450) 点一下，循环
@@ -107,7 +97,6 @@ CycleStart := 0
 CycleCount := 0
 CurrentDesktop := 0
 DetectSeconds := 15     ; 开头检测多少秒
-ResumeIdleMs := 3000    ; 停止操作多久后自动继续（毫秒）
 ManualPaused := false   ; F8 手动暂停的开关
 PauseStartTick := 0     ; 本次暂停开始的时间，0 表示没在暂停
 ; 检测时记下的图标中心坐标（下标从 1 开始，对应桌面 1、2、3……）
@@ -229,7 +218,7 @@ btnSaveConfig := MyGui.Add("Button", "x132 y365 w115 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", SaveConfig)
 btnExit := MyGui.Add("Button", "x254 y365 w115 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
-MyGui.Add("Text", "x10 y405 w360 h50", "提示：F11 桌面轮询（先检测 15 秒，再一直轮询；放映机图标在才按 X、才点非亮色的状态图标），F12 开箱子，F9 全部停止（不退出）。动鼠标/键盘会自动暂停，3 秒无操作后自动继续；F8 手动暂停/继续。功能 1 需要同目录下的 VirtualDesktopAccessor.dll 和 FindText.ahk，DLL 版本须匹配 Windows。")
+MyGui.Add("Text", "x10 y405 w360 h50", "提示：F11 桌面轮询（先检测 15 秒，再一直轮询；放映机图标在才按 X、才点非亮色的状态图标），F12 开箱子，F9 全部停止（不退出）。F8 手动暂停/继续。功能 1 需要同目录下的 VirtualDesktopAccessor.dll 和 FindText.ahk，DLL 版本须匹配 Windows。")
 MyGui.OnEvent("Close", (*) => ExitApp())
 
 ; DLL 没加载成功时，禁用功能 1，不影响功能 2
@@ -330,20 +319,17 @@ FormatMMSS(Ms) {
 
 
 
-; 用户是不是正在用电脑：手动暂停了，或者 ResumeIdleMs 毫秒内
-; 有过鼠标/键盘操作。A_TimeIdlePhysical 只算真实的物理操作，
-; 脚本自己发的按键和点击不算，所以脚本不会把自己暂停。
+; 是不是手动暂停了（F8）：轮询和开箱子都用这个判断。
 UserBusy() {
-    global ManualPaused, ResumeIdleMs
-    return ManualPaused || (A_TimeIdlePhysical < ResumeIdleMs)
+    global ManualPaused
+    return ManualPaused
 }
 
-; 轮询的暂停检查：暂停返回 true，恢复返回 false。
-; 暂停期间阶段计时跟着停，恢复时把暂停的时间补回 CycleStart，
-; 比如空闲倒计时暂停多久就往后顺延多久。
+; 轮询的暂停检查（只认 F8 手动暂停）：暂停返回 true，恢复返回 false。
+; 暂停期间检测计时跟着停，恢复时把暂停的时间补回 CycleStart。
 CheckPaused() {
-    global ManualPaused, PauseStartTick, CycleStart, ResumeIdleMs
-    if (!ManualPaused && A_TimeIdlePhysical >= ResumeIdleMs) {
+    global ManualPaused, PauseStartTick, CycleStart
+    if (!ManualPaused) {
         if (PauseStartTick != 0) {
             CycleStart += (A_TickCount - PauseStartTick)
             PauseStartTick := 0
@@ -476,11 +462,11 @@ StepDesktop() {
     if (!DesktopRunning) {
         return
     }
-    ; 暂停：你动了鼠标/键盘，或按了 F8 手动暂停，就停在这里，
-    ; 什么都不做；3 秒没再动就自动从停下的地方继续。
+    ; 暂停：按了 F8 手动暂停，就停在这里，什么都不做；
+    ; 再按一次 F8 继续。
     if (CheckPaused()) {
-        ToolTip("Paused - using mouse/keyboard, auto resume after 3s idle (F8 to resume)")
-        txtDesktopStatus.Text := "状态：已暂停（检测到鼠标/键盘操作，3 秒无操作后自动继续；F8 手动继续）"
+        ToolTip("Paused manually (F8), press F8 again to resume")
+        txtDesktopStatus.Text := "状态：已暂停（F8 手动暂停，再按一次 F8 继续）"
         SetTimer(StepDesktop, 250)
         return
     }
@@ -779,7 +765,7 @@ ToggleSynth(*) {
 
 StepTwo() {
     global TwoPhase, Point1X, Point1Y, Point2X, Point2Y, WaitAfterFirst, WaitAfterSecond
-    ; 你动了鼠标/键盘就暂停，不点，等 3 秒无操作后再继续。
+    ; 按了 F8 手动暂停，就不点，等再按 F8 继续后再点。
     if (UserBusy()) {
         SetTimer(StepTwo, 500)
         return
@@ -799,7 +785,7 @@ StepTwo() {
 
 StepRight() {
     global RightX, RightY
-    ; 你动了鼠标/键盘就暂停，不点，下次定时到了再试。
+    ; 按了 F8 手动暂停，就不点，下次定时到了再试。
     if (UserBusy()) {
         return
     }
@@ -867,8 +853,7 @@ ToggleClickHotkey(*) {
 }
 
 ; F8 = 手动暂停 / 继续（轮询和开箱子都停，再按一次继续，
-; 阶段计时跟着停；不用 F8 也行，动鼠标/键盘会自动暂停，
-; 3 秒无操作后自动继续）。
+; 检测计时跟着停）。
 ToggleManualPause(*) {
     global ManualPaused
     ManualPaused := !ManualPaused
@@ -881,7 +866,7 @@ ToggleManualPause(*) {
 
 ; ===== 快捷键 =====
 ; F8  = 手动暂停 / 继续
-; F11 = 桌面轮询 开启 / 停止（再启动会从校准重新开始）
+; F11 = 桌面轮询 开启 / 停止（再启动会从检测重新开始）
 ; F12 = 开箱子 开启 / 暂停
 ; F9  = 统一暂停（全部停止，不退出程序，窗口还在，可再启动）
 F8::ToggleManualPause()
