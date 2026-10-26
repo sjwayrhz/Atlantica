@@ -1,5 +1,6 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
+#Include FindText.ahk
 
 ; ============================================================
 ; Atlantica 功能菜单（图形界面版，AHK v2）
@@ -10,12 +11,15 @@
 ;   1. 桌面轮询（F11）：按 F11 或点按钮启动后，一直重复下面
 ;      的循环，停掉之前不会自己停。轮询时每轮按 G，约 0.05 秒
 ;      后按 X（空闲阶段除外，只按 X、不按 G）。
-;      状态图标是交叉双剑的方形图标（StatusBright.png /
-;      StatusDark.png）：亮版底色是浅蓝色，暗版底色是深紫色，
-;      图标里的数字会变，只取色不看数字。找图标先用两张图
-;      全屏定位（ImageSearch），找到后在图标里取 6 个点的颜色，
-;      平均灰度大于 120 是亮色，小于 120 是暗色。校准记下图标
-;      中心后，只在记录位置附近找。
+;      状态图标是交叉双剑的方形图标：亮版底色浅蓝、暗版底色
+;      深紫，图标里的数字会变，只认图案不看数字。用 FindText
+;      找图标：亮版和暗版各一个 42x35 的黑白图案（阈值 120，
+;      从你发的两张截图转出来的），亮版是浅底深剑、暗版是
+;      深底浅剑，图案本身就区分亮暗，不用再取色。之前用的
+;      ImageSearch 模板图里带了会变的数字和游戏背景角，
+;      数字一变、背景一换就整张对不上，所以完全找不到；
+;      FindText 只比图案本身的明暗形状，容错 0.1，数字变了
+;      也不影响。校准记下图标中心后，只在记录位置附近找。
 ;      第 1 步 校准 2 分钟：
 ;        轮询按 G、X，同时在每个桌面找状态图标，确认位置正常
 ;        并记下图标中心的坐标，光标旁会提示。
@@ -58,8 +62,8 @@
 ;       点“保存配置”会把界面里当前填的坐标、间隔、按键存到
 ;       同目录的 Atlantica_Config.ini，下次打开自动恢复。
 ;       关窗口或点“退出”即全部停止并退出。
-; 注意：功能 1 需要 VirtualDesktopAccessor.dll、StatusBright.png
-;       和 StatusDark.png 都放在本脚本同目录，DLL 版本要和你的
+; 注意：功能 1 需要 VirtualDesktopAccessor.dll 和 FindText.ahk
+;       都放在本脚本同目录，DLL 版本要和你的
 ;       Windows 版本匹配，否则该功能会被禁用。
 ; ============================================================
 
@@ -119,18 +123,22 @@ DoneDark := []          ; 转暗阶段：这个桌面是否已完成
 VerifyDesktop := -1     ; 正在验证的桌面（从 0 开始），-1 表示没有
 VerifyTarget := ""      ; 正在验证的目标："bright" 或 "dark"
 
-; ===== 状态图标（功能 1 用）=====
+; ===== 状态图标（功能 1 用，FindText）=====
 ; 交叉双剑的方形图标，亮版底色浅蓝、暗版底色深紫，图标里的
-; 数字会变，只取色不看数字。定位用两张图（ImageSearch），
-; 亮暗用图标里 6 个取色点的平均灰度判断：亮版约 173，
-; 暗版约 64，阈值 120。BrightW/H、DarkW/H 是两张图的尺寸，
-; 换图要同步改这里。
-BrightW := 48
-BrightH := 47
-DarkW := 46
-DarkH := 42
-ImgVariation := 20      ; ImageSearch 容差（0-255，20 = 每通道允许约 20 的色差）
-GrayThreshold := 120    ; 图标平均灰度阈值，大于它是亮色，小于它是暗色
+; 数字会变，只认图案不看数字。两个图案都是 42x35，阈值 120，
+; 从你发的两张截图裁出来的图标方形转的（亮版取 y 7-41、
+; 暗版取 y 2-36，都是 x 3-44，数字在方形外面，没进图案）：
+; 亮版是浅底深剑（暗像素只占约 9%），暗版是深底浅剑（暗像素
+; 约 83%），两个图案几乎是反的，互相认不到对方，所以找到
+; 哪个图案就是哪个状态。FindText 返回的是图案中心，点图标
+; 中心用的就是这个坐标。游戏里图标尺寸变了图案就对不上，
+; 到时把游戏实屏截图发我，按实际尺寸重做图案。
+; FindErr1/FindErr0 是 FindText 的容错（0.1 = 10%）：找不到
+; 就调高，认错别的图标就调低。
+FindErr1 := 0.1
+FindErr0 := 0.1
+BrightText := "|<Bright>*120$42.U000001000000000000000000000003zk00003zk10401zU20430z0k041UV1U040kS30040MA6E040A0A004060M004030k00001VU00400H0004000000400M000400Q000000S000000n000001VU000030k0000200000040A000000400000040000E06000000000000000000000000400080000000000000000000001U"
+DarkText := "|<Dark>*120$42.U000001DzzzzzxTvzzzryTszzz7yTsTzy7yTwDzwDyTw7zsDyTz7zszyTzXVlzyTzlSXzyTzsy7zyTzwyDzyTzyETzyTzzAzzyTzzgzzyTzzGzzyTzzVzzyTzzvzzzTzzzzzzTzzzzzyTjzzzxyTjzzzxzTrvzzvzTzu1VzzTzqzSzzTz6zQzzTz63QzzTzrxSzzzzjxSzzzzjxSzzzzixSzzzzj1VzzzzTzzzzzTTzzyzzjzzzxzU"
 
 ClickMode := ""         ; "" = 未运行，"both" = 两种同时，"right" = 仅右键（抽奖），"two" = 仅两点点击（合成）
 TwoRunning := false
@@ -219,7 +227,7 @@ btnSaveConfig := MyGui.Add("Button", "x132 y365 w115 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", SaveConfig)
 btnExit := MyGui.Add("Button", "x254 y365 w115 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
-MyGui.Add("Text", "x10 y405 w360 h50", "提示：F11 桌面轮询（循环：校准 2 分钟 -> 转亮 2 分钟 -> 空闲 40 分钟 -> 转暗 2 分钟 -> 轮询 15 分钟 -> 转亮，一直重复），F12 开箱子，F9 全部停止（不退出）。动鼠标/键盘会自动暂停，3 秒无操作后自动继续；F8 手动暂停/继续。功能 1 需要同目录下的 VirtualDesktopAccessor.dll、StatusBright.png 和 StatusDark.png，DLL 版本须匹配 Windows。")
+MyGui.Add("Text", "x10 y405 w360 h50", "提示：F11 桌面轮询（循环：校准 2 分钟 -> 转亮 2 分钟 -> 空闲 40 分钟 -> 转暗 2 分钟 -> 轮询 15 分钟 -> 转亮，一直重复），F12 开箱子，F9 全部停止（不退出）。动鼠标/键盘会自动暂停，3 秒无操作后自动继续；F8 手动暂停/继续。功能 1 需要同目录下的 VirtualDesktopAccessor.dll 和 FindText.ahk，DLL 版本须匹配 Windows。")
 MyGui.OnEvent("Close", (*) => ExitApp())
 
 ; DLL 没加载成功时，禁用功能 1，不影响功能 2
@@ -395,17 +403,8 @@ CheckPaused() {
     return true
 }
 
-; 一个点的灰度（R*38+G*75+B*15，取色失败会抛错）。
-PixelGray(X, Y) {
-    C := PixelGetColor(X, Y)
-    R := (C >> 16) & 0xFF
-    G := (C >> 8) & 0xFF
-    B := C & 0xFF
-    return (R * 38 + G * 75 + B * 15) // 128
-}
-
 ; 把一次找到的结果记到脚本同目录的 Atlantica_Find_Log.txt，
-; 方便查为什么会认错（坐标和灰度值都在里面）。
+; 方便查为什么会认错（坐标和找到哪个图案都在里面）。
 LogFind(Msg) {
     try {
         FileAppend(Format("{:02d}:{:02d}:{:02d} ", A_Hour, A_Min, A_Sec) . Msg . "`n", A_ScriptDir . "\Atlantica_Find_Log.txt", "UTF-8")
@@ -413,15 +412,14 @@ LogFind(Msg) {
     }
 }
 
-; 在指定矩形里找状态图标（先找亮版模板，再找暗版模板）。
-; 找到返回 true，TX/TY 是模板左上角，W/H 是模板尺寸。
-; 坐标会夹到屏幕内，模板文件找不到会抛错，这里当没找到处理。
-LocateIconIn(X1, Y1, X2, Y2, &TX, &TY, &W, &H) {
-    global ImgVariation, BrightW, BrightH, DarkW, DarkH
-    TX := 0
-    TY := 0
-    W := 0
-    H := 0
+; 在指定矩形里找状态图标（FindText）：先找亮版图案，再找暗版图案。
+; 找到返回 "bright" 或 "dark"，CX/CY 是图标中心——FindText 直接
+; 返回图案中心，点图标用的就是这个坐标。都没找到返回 ""。
+; 坐标会夹到屏幕内，FindText 报错（如图案写错）时当没找到处理。
+FindStatusIn(X1, Y1, X2, Y2, &CX, &CY) {
+    global BrightText, DarkText, FindErr1, FindErr0
+    CX := 0
+    CY := 0
     if (X1 < 0) {
         X1 := 0
     }
@@ -437,86 +435,49 @@ LocateIconIn(X1, Y1, X2, Y2, &TX, &TY, &W, &H) {
     FX := 0
     FY := 0
     try {
-        if (ImageSearch(&FX, &FY, X1, Y1, X2, Y2, "*" . ImgVariation . " " . A_ScriptDir . "\StatusBright.png")) {
-            TX := FX
-            TY := FY
-            W := BrightW
-            H := BrightH
-            return true
+        if (FindText(&FX, &FY, X1, Y1, X2, Y2, FindErr1, FindErr0, BrightText).Length) {
+            CX := FX
+            CY := FY
+            return "bright"
         }
     } catch {
     }
     try {
-        if (ImageSearch(&FX, &FY, X1, Y1, X2, Y2, "*" . ImgVariation . " " . A_ScriptDir . "\StatusDark.png")) {
-            TX := FX
-            TY := FY
-            W := DarkW
-            H := DarkH
-            return true
+        if (FindText(&FX, &FY, X1, Y1, X2, Y2, FindErr1, FindErr0, DarkText).Length) {
+            CX := FX
+            CY := FY
+            return "dark"
         }
     } catch {
     }
-    return false
-}
-
-; 全屏找状态图标。
-LocateIcon(&TX, &TY, &W, &H) {
-    return LocateIconIn(0, 0, A_ScreenWidth, A_ScreenHeight, &TX, &TY, &W, &H)
-}
-
-; 图标里 6 个取色点的平均灰度（都是图标内部的底色，避开
-; 交叉的剑、白色数字和边框）。亮版约 173，暗版约 64。
-; 取色失败返回 -1。TX/TY 是图标左上角，W/H 是图标尺寸。
-IconGray(TX, TY, W, H) {
-    Sum := 0
-    N := 0
-    try {
-        for Pt in [[0.09, 0.50], [0.89, 0.50], [0.25, 0.75], [0.75, 0.75], [0.17, 0.80], [0.81, 0.80]] {
-            Sum += PixelGray(TX + Round(Pt[1] * W), TY + Round(Pt[2] * H))
-            N++
-        }
-    } catch {
-        return -1
-    }
-    return Sum // N
+    return ""
 }
 
 ; 找当前桌面的状态图标并判断亮暗，返回 "bright"、"dark" 或
 ; ""（没找到）。Idx 是桌面序号（从 1 开始），OutX/OutY 是
 ; 图标中心（点它用的坐标）。有校准记录时只在记录位置附近
 ; 找（中心 ±110/±90），这样屏幕别处的误匹配就进不来；
-; 没记录时才全屏找。亮暗只看取色，不看图标里的数字。
+; 没记录时才全屏找。亮暗由找到哪个 FindText 图案决定，
+; 不看图标里的数字，也不再取色。
 GetStatus(Idx, &OutX, &OutY) {
-    global CalStatusX, CalStatusY, GrayThreshold
+    global CalStatusX, CalStatusY
     OutX := 0
     OutY := 0
-    TX := 0
-    TY := 0
-    W := 0
-    H := 0
     Where := ""
     HasRecord := (Idx >= 1 && Idx <= CalStatusX.Length && CalStatusX[Idx] != 0)
     if (HasRecord) {
         CX := CalStatusX[Idx]
         CY := CalStatusY[Idx]
-        if (!LocateIconIn(CX - 110, CY - 90, CX + 110, CY + 90, &TX, &TY, &W, &H)) {
-            return ""
-        }
+        State := FindStatusIn(CX - 110, CY - 90, CX + 110, CY + 90, &OutX, &OutY)
         Where := "region"
     } else {
-        if (!LocateIcon(&TX, &TY, &W, &H)) {
-            return ""
-        }
+        State := FindStatusIn(0, 0, A_ScreenWidth, A_ScreenHeight, &OutX, &OutY)
         Where := "full"
     }
-    OutX := TX + W // 2
-    OutY := TY + H // 2
-    Gray := IconGray(TX, TY, W, H)
-    if (Gray < 0) {
+    if (State = "") {
         return ""
     }
-    State := (Gray > GrayThreshold) ? "bright" : "dark"
-    LogFind("D" . Idx . " icon " . Where . " FOUND (" . OutX . "," . OutY . ") gray " . Gray . " -> " . State)
+    LogFind("D" . Idx . " icon " . Where . " FOUND (" . OutX . "," . OutY . ") -> " . State)
     return State
 }
 
