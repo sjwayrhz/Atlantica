@@ -10,6 +10,12 @@
 ; 功能：
 ;   1. 桌面轮询（F11）：按 F11 或点按钮启动后，三个桌面一直
 ;      轮询切换，停掉之前不会自己停。先检测 15 秒，再一直轮询。
+;      切到每个桌面后，先用图标位置把游戏窗口激活（窗口是窗口
+;      模式跑的，不激活的话按 G/X 进不去游戏；以前要手动点一下
+;      窗口，现在脚本自己激活，不用手动点了）。激活不用窗口标题，
+;      因为三个桌面的游戏窗口标题都一样（"Atlantica Online Fenix"），
+;      标题分不出是哪个桌面的窗口；图标在当前桌面上，图标位置的
+;      窗口就是当前这个桌面的游戏窗口。
 ;      轮询时先看放映机图标和状态图标：放映机图标在、并且是
 ;      亮色，就只按 X、不按 G；其他情况按 G，放映机图标在才
 ;      在约 0.05 秒后按 X。
@@ -90,12 +96,14 @@ DesktopKey2 := "x"      ; 每次按 G 后再按的第二个键
 KeyGapMs := 50          ; 按 G 和按 X 之间相隔的毫秒数（约 0.05 秒）
 SwitchClickX := 212     ; 每次切换后要点的固定位置
 SwitchClickY := 57
+GameTitle := "Atlantica Online Fenix"  ; 游戏窗口标题（截图里看到的；三个桌面都一样，所以不能只靠标题找窗口，要用图标位置）
 
 ; ===== 轮询循环（功能 1）的阶段和计时 =====
 ; CyclePhase：detect 检测 15 秒 -> main 一直轮询。
-; DesktopPhase 是每一步的小阶段：switch 切桌面、click212 点
-; 切换后坐标、click 原地点击、check 检查放映机图标和状态图标
-; （决定按 G 还是只按 X、点不点状态图标）、pressX 按 X 和点图标。
+; DesktopPhase 是每一步的小阶段：switch 切桌面、activate 激活游戏窗口
+; （用图标位置找窗口）、click212 点切换后坐标、click 原地点击、
+; check 检查放映机图标和状态图标（决定按 G 还是只按 X、点不点
+; 状态图标）、pressX 按 X 和点图标。
 CyclePhase := ""
 CycleStart := 0
 CycleCount := 0
@@ -474,6 +482,48 @@ FindDark(Idx, &OutX, &OutY) {
     return Found
 }
 
+; 在当前桌面找一个游戏图标（只为激活窗口定位用）：先试放映机图标，
+; 再试暗版状态图标，最后试亮版状态图标。找到返回 true，OutX/OutY 是图标中心。
+; 哪个图标都行，只要在游戏窗口上，能定位到窗口就行。
+FindGameIcon(Idx, &OutX, &OutY) {
+    if (FindProjector(Idx, &OutX, &OutY)) {
+        return true
+    }
+    if (FindDark(Idx, &OutX, &OutY)) {
+        return true
+    }
+    if (FindBright(Idx, &OutX, &OutY)) {
+        return true
+    }
+    return false
+}
+
+; 把图标所在位置的窗口激活（让游戏窗口获得焦点，这样后面的点
+; 击和按 G/X 才能进游戏，不用再手动点窗口）。
+; 做法：鼠标移到图标上，取鼠标下的窗口，激活它。
+; 不用窗口标题来找，因为三个桌面的游戏窗口标题都一样
+; （都是 "Atlantica Online Fenix"），标题分不出是哪个桌面的窗口；
+; 图标在当前桌面上，所以图标位置的窗口一定是当前这个桌面的游戏窗口。
+; 找到窗口就返回 true，没找到返回 false（找不到就照旧用点击来聚焦）。
+ActivateGameWindow(IconX, IconY) {
+    if (IconX = 0 || IconY = 0) {
+        return false
+    }
+    WinID := 0
+    try {
+        MouseMove(IconX, IconY)
+        Sleep(50)
+        MouseGetPos(, , &WinID)
+        if (WinID) {
+            WinActivate("ahk_id " WinID)
+            LogFind("activated game window at (" IconX "," IconY ") hwnd=" WinID)
+            return true
+        }
+    } catch {
+    }
+    return false
+}
+
 
 ; 检测进度，如 "D1 OK D2 OK D3 -- "。
 DetectSummary() {
@@ -490,7 +540,7 @@ DetectSummary() {
 }
 
 ; 轮询主循环：一个定时器驱动的状态机，每步做完再约下一步。
-; 每轮：切桌面 -> 停 0.5 秒 -> 点 (212,57) -> 停 0.5 秒
+; 每轮：切桌面 -> 停 0.5 秒 -> 激活游戏窗口（用图标位置） -> 点 (212,57) -> 停 0.5 秒
 ; -> 原地点一下 -> 等 1000 毫秒 -> 检查放映机图标和状态图标
 ; （放映机图标在、并且是亮色，就只按 X、不按 G；其他情况
 ; 按 G，放映机图标在才在约 0.05 秒后按 X；放映机图标在、
@@ -529,8 +579,22 @@ StepDesktop() {
             Left := DetectSeconds * 1000 - (A_TickCount - CycleStart)
             ToolTip("Detect " FormatMMSS(Left) " left - Desktop " (CurrentDesktop + 1))
         }
-        DesktopPhase := "click212"
+        DesktopPhase := "activate"
         SetTimer(StepDesktop, 500)   ; 切换后先停 0.5 秒
+    } else if (DesktopPhase = "activate") {
+        ; 切完桌面先激活游戏窗口（用图标位置找窗口，不用标题，
+        ; 因为三个桌面标题都一样），这样后面的点击和按 G/X 才进游戏，
+        ; 不用再手动点窗口。找不到图标就跳过，照旧用点击来聚焦。
+        Idx := CurrentDesktop + 1
+        IX := 0
+        IY := 0
+        if (FindGameIcon(Idx, &IX, &IY)) {
+            ActivateGameWindow(IX, IY)
+        } else {
+            LogFind("D" Idx " activate: no icon found, skip activation")
+        }
+        DesktopPhase := "click212"
+        SetTimer(StepDesktop, 100)   ; 激活后稍停一下再点
     } else if (DesktopPhase = "click212") {
         Click(SwitchClickX, SwitchClickY)
         DesktopPhase := "click"
