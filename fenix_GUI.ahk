@@ -70,7 +70,9 @@
 ;
 ; 使用：双击运行本脚本，点按钮或按快捷键即可。
 ;       F11 开关桌面轮询，F12 开关开箱子，F9 统一暂停（不退出）。
-;       点“保存配置”会把界面里当前填的坐标、间隔、按键存到
+;       桌面轮询只有开始和暂停两个按钮（暂停和 F8 一样），参数
+;       不用界面填，用配置文件里的值（没保存过就用默认值）。
+;       点“保存配置”会把开箱子界面里当前填的坐标、间隔存到
 ;       同目录的 fenix_Config.ini，下次打开自动恢复。
 ;       关窗口或点“退出”即全部停止并退出。
 ; 注意：功能 1 需要 VirtualDesktopAccessor.dll 和 FindText.ahk
@@ -196,54 +198,48 @@ MyGui.Add("Text", "x10 y10 w360", "打开后点下面的功能按钮即可开始
 
 ; ---- 功能 1：桌面轮询 ----
 MyGui.Add("Text", "x10 y40 w360", "1. 桌面轮询 (F11)")
-MyGui.Add("Text", "x10 y65 w70", "每步间隔(ms):")
-edtDesktopWait := MyGui.Add("Edit", "x85 y62 w70", CfgDesktopWait)
-MyGui.Add("Text", "x165 y65 w40", "按键:")
-edtDesktopKey := MyGui.Add("Edit", "x205 y62 w50", CfgDesktopKey)
-MyGui.Add("Text", "x10 y95 w90", "切换后点击 X:")
-edtSwitchX := MyGui.Add("Edit", "x100 y92 w60", CfgSwitchX)
-MyGui.Add("Text", "x170 y95 w15", "Y:")
-edtSwitchY := MyGui.Add("Edit", "x185 y92 w60", CfgSwitchY)
-btnDesktop := MyGui.Add("Button", "x10 y125 w360 h30", "开始：桌面轮询")
+btnDesktop := MyGui.Add("Button", "x10 y65 w175 h30", "开始：桌面轮询")
 btnDesktop.OnEvent("Click", ToggleDesktop)
-txtDesktopStatus := MyGui.Add("Text", "x10 y160 w360", "状态：未运行")
+btnDesktopPause := MyGui.Add("Button", "x195 y65 w175 h30", "暂停")
+btnDesktopPause.OnEvent("Click", ToggleManualPause)
+txtDesktopStatus := MyGui.Add("Text", "x10 y100 w360", "状态：未运行")
 
 ; ---- 功能 2：开箱子（两点点击 + 右键点击）----
-MyGui.Add("Text", "x10 y190 w360", "2. 开箱子 (F12)")
-MyGui.Add("Text", "x10 y215 w50", "点 1 X:")
-edtP1X := MyGui.Add("Edit", "x60 y212 w55", CfgPoint1X)
-MyGui.Add("Text", "x125 y215 w15", "Y:")
-edtP1Y := MyGui.Add("Edit", "x140 y212 w55", CfgPoint1Y)
-MyGui.Add("Text", "x205 y215 w50", "点 2 X:")
-edtP2X := MyGui.Add("Edit", "x255 y212 w55", CfgPoint2X)
-MyGui.Add("Text", "x320 y215 w15", "Y:")
-edtP2Y := MyGui.Add("Edit", "x335 y212 w35", CfgPoint2Y)
-MyGui.Add("Text", "x10 y242 w80", "点 1 后等(ms):")
-edtWait1 := MyGui.Add("Edit", "x95 y239 w60", CfgWaitAfterFirst)
-MyGui.Add("Text", "x165 y242 w80", "点 2 后等(ms):")
-edtWait2 := MyGui.Add("Edit", "x250 y239 w60", CfgWaitAfterSecond)
-MyGui.Add("Text", "x10 y272 w50", "右键 X:")
-edtRightX := MyGui.Add("Edit", "x60 y269 w60", CfgRightX)
-MyGui.Add("Text", "x130 y272 w15", "Y:")
-edtRightY := MyGui.Add("Edit", "x145 y269 w60", CfgRightY)
-MyGui.Add("Text", "x215 y272 w60", "间隔(ms):")
-edtRightInterval := MyGui.Add("Edit", "x280 y269 w70", CfgRightInterval)
-btnBoth := MyGui.Add("Button", "x10 y300 w150 h30", "两种点击同时操作")
+MyGui.Add("Text", "x10 y130 w360", "2. 开箱子 (F12)")
+MyGui.Add("Text", "x10 y155 w50", "点 1 X:")
+edtP1X := MyGui.Add("Edit", "x60 y152 w55", CfgPoint1X)
+MyGui.Add("Text", "x125 y155 w15", "Y:")
+edtP1Y := MyGui.Add("Edit", "x140 y152 w55", CfgPoint1Y)
+MyGui.Add("Text", "x205 y155 w50", "点 2 X:")
+edtP2X := MyGui.Add("Edit", "x255 y152 w55", CfgPoint2X)
+MyGui.Add("Text", "x320 y155 w15", "Y:")
+edtP2Y := MyGui.Add("Edit", "x335 y152 w35", CfgPoint2Y)
+MyGui.Add("Text", "x10 y182 w80", "点 1 后等(ms):")
+edtWait1 := MyGui.Add("Edit", "x95 y179 w60", CfgWaitAfterFirst)
+MyGui.Add("Text", "x165 y182 w80", "点 2 后等(ms):")
+edtWait2 := MyGui.Add("Edit", "x250 y179 w60", CfgWaitAfterSecond)
+MyGui.Add("Text", "x10 y212 w50", "右键 X:")
+edtRightX := MyGui.Add("Edit", "x60 y209 w60", CfgRightX)
+MyGui.Add("Text", "x130 y212 w15", "Y:")
+edtRightY := MyGui.Add("Edit", "x145 y209 w60", CfgRightY)
+MyGui.Add("Text", "x215 y212 w60", "间隔(ms):")
+edtRightInterval := MyGui.Add("Edit", "x280 y209 w70", CfgRightInterval)
+btnBoth := MyGui.Add("Button", "x10 y240 w150 h30", "两种点击同时操作")
 btnBoth.OnEvent("Click", ToggleBoth)
-btnRightOnly := MyGui.Add("Button", "x165 y300 w100 h30", "抽奖")
+btnRightOnly := MyGui.Add("Button", "x165 y240 w100 h30", "抽奖")
 btnRightOnly.OnEvent("Click", ToggleRightOnly)
-btnSynth := MyGui.Add("Button", "x270 y300 w100 h30", "合成")
+btnSynth := MyGui.Add("Button", "x270 y240 w100 h30", "合成")
 btnSynth.OnEvent("Click", ToggleSynth)
-txtClickStatus := MyGui.Add("Text", "x10 y335 w360", "状态：未运行")
+txtClickStatus := MyGui.Add("Text", "x10 y275 w360", "状态：未运行")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y365 w115 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y305 w115 h30", "全部停止")
 btnStopAll.OnEvent("Click", StopAll)
-btnSaveConfig := MyGui.Add("Button", "x132 y365 w115 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x132 y305 w115 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", SaveConfig)
-btnExit := MyGui.Add("Button", "x254 y365 w115 h30", "退出")
+btnExit := MyGui.Add("Button", "x254 y305 w115 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
-MyGui.Add("Text", "x10 y405 w360 h50", "提示：F11 桌面轮询（先检测 15 秒，再一直轮询；放映机图标在才按 X、暗色才点状态图标、未知图标不点），F12 开箱子，F9 全部停止（不退出）。F8 手动暂停/继续。功能 1 需要同目录下的 VirtualDesktopAccessor.dll 和 FindText.ahk，DLL 版本须匹配 Windows。")
+MyGui.Add("Text", "x10 y345 w360 h50", "提示：F11 桌面轮询（先检测 15 秒，再一直轮询；放映机图标在才按 X、暗色才点状态图标、未知图标不点），F12 开箱子，F9 全部停止（不退出）。F8 手动暂停/继续。功能 1 需要同目录下的 VirtualDesktopAccessor.dll 和 FindText.ahk，DLL 版本须匹配 Windows。")
 MyGui.OnEvent("Close", (*) => ExitApp())
 
 ; DLL 没加载成功时，禁用功能 1，不影响功能 2
@@ -252,7 +248,7 @@ if (DesktopCount < 1) {
     txtDesktopStatus.Text := "状态：不可用（DLL 加载失败，请检查同目录的 VirtualDesktopAccessor.dll）"
 }
 
-MyGui.Show("w380 h460")
+MyGui.Show("w380 h400")
 
 ; ===== 功能 1：桌面轮询 =====
 ; F11 或点按钮启动：先检测 15 秒（轮询按 G，记录放映机图标
@@ -261,7 +257,8 @@ MyGui.Show("w380 h460")
 ; 并且状态图标是暗色，才点状态图标一下，尝试变亮色；未知图标不点。
 ToggleDesktop(*) {
     global DesktopRunning, DesktopPhase, DesktopWaitMs, DesktopKey, SwitchClickX, SwitchClickY
-    global btnDesktop, txtDesktopStatus, edtDesktopWait, edtDesktopKey, edtSwitchX, edtSwitchY
+    global btnDesktop, txtDesktopStatus
+    global CfgDesktopWait, CfgDesktopKey, CfgSwitchX, CfgSwitchY
     global CyclePhase, CycleStart, CycleCount, DesktopNext, CurrentDesktop, DesktopCount
     global CalStatusX, CalStatusY, CalProjX, CalProjY, CalOK
     if (DesktopRunning) {
@@ -273,14 +270,12 @@ ToggleDesktop(*) {
         ToolTip()
         return
     }
-    if (!IsNumber(edtDesktopWait.Value) || !IsNumber(edtSwitchX.Value) || !IsNumber(edtSwitchY.Value)) {
-        MsgBox("桌面轮询的间隔和切换后点击的坐标请都填数字。")
-        return
-    }
-    DesktopWaitMs := Integer(edtDesktopWait.Value)
-    DesktopKey := edtDesktopKey.Value
-    SwitchClickX := Integer(edtSwitchX.Value)
-    SwitchClickY := Integer(edtSwitchY.Value)
+    ; 轮询参数不用界面填了，用配置文件里的值（没保存过就用默认值：
+    ; 间隔 1000 毫秒、按键 g、切换后点 (212,57)）。
+    DesktopWaitMs := Integer(CfgDesktopWait)
+    DesktopKey := CfgDesktopKey
+    SwitchClickX := Integer(CfgSwitchX)
+    SwitchClickY := Integer(CfgSwitchY)
     DesktopRunning := true
     CycleCount++
     ; 检测记录清零，下标从 1 开始，对应桌面 1、2、3……
@@ -1051,27 +1046,20 @@ StopAll(*) {
 }
 
 ; ===== 保存配置 =====
-; 保存的是界面里当前填的值（不是正在运行的那份旧值），
+; 保存的是开箱子界面里当前填的值（不是正在运行的那份旧值），
 ; 存到脚本同目录的 fenix_Config.ini，下次打开自动恢复。
+; 桌面轮询的参数不用界面填了（用配置文件里的值，没保存过
+; 就用默认值），所以保存配置不再写桌面轮询那几项。
 ; 正在运行时点保存也不会停掉正在跑的功能。
 SaveConfig(*) {
     global ConfigFile
-    global edtDesktopWait, edtDesktopKey, edtSwitchX, edtSwitchY
     global edtP1X, edtP1Y, edtP2X, edtP2Y, edtWait1, edtWait2, edtRightX, edtRightY, edtRightInterval
-    for ctrl in [edtDesktopWait, edtSwitchX, edtSwitchY, edtP1X, edtP1Y, edtP2X, edtP2Y, edtWait1, edtWait2, edtRightX, edtRightY, edtRightInterval] {
+    for ctrl in [edtP1X, edtP1Y, edtP2X, edtP2Y, edtWait1, edtWait2, edtRightX, edtRightY, edtRightInterval] {
         if (!IsNumber(ctrl.Value)) {
             MsgBox("有坐标或间隔不是数字，配置没有保存，请先改成数字再点保存配置。")
             return
         }
     }
-    if (edtDesktopKey.Value = "") {
-        MsgBox("桌面轮询按键不能为空，配置没有保存。")
-        return
-    }
-    IniWrite(edtDesktopWait.Value, ConfigFile, "Desktop", "WaitMs")
-    IniWrite(edtDesktopKey.Value, ConfigFile, "Desktop", "Key")
-    IniWrite(edtSwitchX.Value, ConfigFile, "Desktop", "SwitchX")
-    IniWrite(edtSwitchY.Value, ConfigFile, "Desktop", "SwitchY")
     IniWrite(edtP1X.Value, ConfigFile, "Click", "Point1X")
     IniWrite(edtP1Y.Value, ConfigFile, "Click", "Point1Y")
     IniWrite(edtP2X.Value, ConfigFile, "Click", "Point2X")
@@ -1101,10 +1089,20 @@ ToggleClickHotkey(*) {
 ToggleManualPause(*) {
     global ManualPaused
     ManualPaused := !ManualPaused
+    UpdatePauseButton()
     if (ManualPaused) {
         ToolTip("Paused manually (F8), press F8 again to resume")
     } else {
         ToolTip()
+    }
+}
+
+; 按暂停状态更新轮询区的暂停按钮文字：暂停时显示“继续”，没暂停显示“暂停”。
+UpdatePauseButton() {
+    global ManualPaused, btnDesktopPause
+    try {
+        btnDesktopPause.Text := ManualPaused ? "继续" : "暂停"
+    } catch {
     }
 }
 
