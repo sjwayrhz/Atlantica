@@ -10,7 +10,9 @@
 ; 功能：
 ;   1. 桌面轮询（F11）：按 F11 或点按钮启动后，一直重复下面
 ;      的循环，停掉之前不会自己停。轮询时每轮按 G，约 0.05 秒
-;      后再按 X（空闲阶段除外，只按 X，不按 G）。
+;      后看一眼屏幕：只有看到等待图标、没看到状态按钮时才
+;      按 X（空闲阶段除外，只按 X、不按 G，同样只有看到等待
+;      图标时才按）。
 ;      第 1 步 校准 2 分钟：
 ;        轮询按 G、X，同时在每个桌面找等待图标和状态按钮，
 ;        确认位置正常并记下两个点的坐标，光标旁会提示。
@@ -82,8 +84,9 @@ SwitchClickY := 57
 ;   -> poll 轮询 15 分钟 -> toBright 转亮 2 分钟 -> idle ...
 ; DesktopPhase 是每一步的小阶段：switch 切桌面、click212 点
 ; 切换后坐标、click 原地点击、press 按 G、pressX 约 0.05 秒后
-; 按 X（空闲阶段不按 G，只按 X），另加 calibCheck 校准检查、
-; toggleCheck 亮暗检查、toggleVerify 点完验证。
+; 检查图标再决定按不按 X（空闲阶段不按 G，只按 X，同样先
+; 检查），另加 calibCheck 校准检查、toggleCheck 亮暗检查、
+; toggleVerify 点完验证。
 CyclePhase := ""
 CycleStart := 0
 CycleCount := 0
@@ -388,6 +391,26 @@ IsDarkPresent(&OutX, &OutY) {
     return FindOne(TextDark, &OutX, &OutY)
 }
 
+; 决定要不要按 X：只有看到等待图标、没看到状态按钮时才按。
+; 等待图标在，状态按钮一般不在；如果状态按钮在，就不按 X；
+; 两个都没看到，也不按 X。
+ShouldPressX() {
+    if (!IsBlockerPresent()) {
+        return false
+    }
+    BX := 0
+    BY := 0
+    if (IsBrightPresent(&BX, &BY)) {
+        return false
+    }
+    DX := 0
+    DY := 0
+    if (IsDarkPresent(&DX, &DY)) {
+        return false
+    }
+    return true
+}
+
 CountDone(DoneList) {
     global DesktopCount
     N := 0
@@ -459,16 +482,22 @@ StepDesktop() {
         SetTimer(StepDesktop, DesktopWaitMs)
     } else if (DesktopPhase = "press") {
         if (CyclePhase = "idle") {
-            Send(DesktopKey2)   ; 空闲只按 X，不按 G
+            ; 空闲只按 X，不按 G；而且只有看到等待图标时才按 X。
+            if (ShouldPressX()) {
+                Send(DesktopKey2)
+            }
             DesktopPhase := "toggleCheck"
             SetTimer(StepDesktop, 300)
         } else {
             Send(DesktopKey)    ; 先按 G
             DesktopPhase := "pressX"
-            SetTimer(StepDesktop, KeyGapMs)   ; 约 0.05 秒后按 X
+            SetTimer(StepDesktop, KeyGapMs)   ; 约 0.05 秒后检查再按 X
         }
     } else if (DesktopPhase = "pressX") {
-        Send(DesktopKey2)       ; 再按 X
+        ; 只有看到等待图标、没看到状态按钮时才按 X。
+        if (ShouldPressX()) {
+            Send(DesktopKey2)
+        }
         if (CyclePhase = "calibrate") {
             DesktopPhase := "calibCheck"
             SetTimer(StepDesktop, 300)
