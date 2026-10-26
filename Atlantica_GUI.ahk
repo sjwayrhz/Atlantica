@@ -32,6 +32,13 @@
 ;        15 分钟结束后把三个桌面的状态按钮都点成亮色。
 ;      然后重复第 3、4、5 步（空闲 40 分钟 -> 转暗 -> 轮询
 ;      15 分钟 -> 转亮），一直循环。
+;      暂停：没有单独的暂停按钮，暂停是自动的——只要你动了
+;      鼠标或键盘，轮询和开箱子都会马上停下；等你 3 秒没再
+;      动鼠标键盘，就自动从停下的地方继续，阶段计时也跟着停
+;      （比如空闲 40 分钟的倒计时，暂停多久就往后顺延多久）。
+;      脚本自己发的按键和点击不算，不会把自己暂停。想手动
+;      暂停就按 F8，再按一次 F8 继续；F11 是停止（再启动会
+;      从校准重新开始），F9 是全部停止。
 ;   2. 开箱子（两点点击 + 右键点击合并）：
 ;      左边按钮：两种点击同时操作
 ;        两点点击：(700,450) 点一下 -> (822,450) 点一下，循环
@@ -97,6 +104,9 @@ IdleMinutes := 40
 PollMinutes := 15
 VerifyMs := 800         ; 点完状态按钮后等多久再检查是否变色
 CenterOffsetY := 20     ; 状态按钮顶部条带中心到圆盘中心的距离
+ResumeIdleMs := 3000    ; 停止操作多久后自动继续（毫秒）
+ManualPaused := false   ; F8 手动暂停的开关
+PauseStartTick := 0     ; 本次暂停开始的时间，0 表示没在暂停
 ; 校准时记下的坐标（下标从 1 开始，对应桌面 1、2、3……）
 ; 0 表示该桌面还没找到这个点。
 CalWaitX := []
@@ -207,7 +217,7 @@ btnSaveConfig := MyGui.Add("Button", "x132 y365 w115 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", SaveConfig)
 btnExit := MyGui.Add("Button", "x254 y365 w115 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
-MyGui.Add("Text", "x10 y405 w360 h50", "提示：F11 桌面轮询（循环：校准 2 分钟 -> 转亮 2 分钟 -> 空闲 40 分钟 -> 转暗 2 分钟 -> 轮询 15 分钟 -> 转亮，一直重复），F12 开箱子，F9 统一暂停（不退出）。功能 1 需要同目录下的 VirtualDesktopAccessor.dll 和 FindText.ahk，DLL 版本须匹配 Windows。")
+MyGui.Add("Text", "x10 y405 w360 h50", "提示：F11 桌面轮询（循环：校准 2 分钟 -> 转亮 2 分钟 -> 空闲 40 分钟 -> 转暗 2 分钟 -> 轮询 15 分钟 -> 转亮，一直重复），F12 开箱子，F9 全部停止（不退出）。动鼠标/键盘会自动暂停，3 秒无操作后自动继续；F8 手动暂停/继续。功能 1 需要同目录下的 VirtualDesktopAccessor.dll 和 FindText.ahk，DLL 版本须匹配 Windows。")
 MyGui.OnEvent("Close", (*) => ExitApp())
 
 ; DLL 没加载成功时，禁用功能 1，不影响功能 2
@@ -361,6 +371,32 @@ IdlePrefix() {
     return "Idle " . FormatMMSS(Left) . " - "
 }
 
+; 用户是不是正在用电脑：手动暂停了，或者 ResumeIdleMs 毫秒内
+; 有过鼠标/键盘操作。A_TimeIdlePhysical 只算真实的物理操作，
+; 脚本自己发的按键和点击不算，所以脚本不会把自己暂停。
+UserBusy() {
+    global ManualPaused, ResumeIdleMs
+    return ManualPaused || (A_TimeIdlePhysical < ResumeIdleMs)
+}
+
+; 轮询的暂停检查：暂停返回 true，恢复返回 false。
+; 暂停期间阶段计时跟着停，恢复时把暂停的时间补回 CycleStart，
+; 比如空闲倒计时暂停多久就往后顺延多久。
+CheckPaused() {
+    global ManualPaused, PauseStartTick, CycleStart, ResumeIdleMs
+    if (!ManualPaused && A_TimeIdlePhysical >= ResumeIdleMs) {
+        if (PauseStartTick != 0) {
+            CycleStart += (A_TickCount - PauseStartTick)
+            PauseStartTick := 0
+        }
+        return false
+    }
+    if (PauseStartTick = 0) {
+        PauseStartTick := A_TickCount
+    }
+    return true
+}
+
 ; 全屏找一个 FindText 图案，找到返回 true，OutX/OutY 是图案中心。
 FindOne(Text, &OutX, &OutY) {
     global FindErr1, FindErr0
@@ -450,6 +486,14 @@ StepDesktop() {
     global DesktopCount, DesktopKey, DesktopKey2, KeyGapMs, GoToDesktopNumberProc, DesktopWaitMs, SwitchClickX, SwitchClickY
     global CalibrateMinutes, ToggleMinutes, IdleMinutes, PollMinutes, txtDesktopStatus
     if (!DesktopRunning) {
+        return
+    }
+    ; 暂停：你动了鼠标/键盘，或按了 F8 手动暂停，就停在这里，
+    ; 什么都不做；3 秒没再动就自动从停下的地方继续。
+    if (CheckPaused()) {
+        ToolTip("Paused - using mouse/keyboard, auto resume after 3s idle (F8 to resume)")
+        txtDesktopStatus.Text := "状态：已暂停（检测到鼠标/键盘操作，3 秒无操作后自动继续；F8 手动继续）"
+        SetTimer(StepDesktop, 250)
         return
     }
     ; 先看阶段是否结束（空闲 40 分钟到时间就切到转暗）。
@@ -807,6 +851,11 @@ ToggleSynth(*) {
 
 StepTwo() {
     global TwoPhase, Point1X, Point1Y, Point2X, Point2Y, WaitAfterFirst, WaitAfterSecond
+    ; 你动了鼠标/键盘就暂停，不点，等 3 秒无操作后再继续。
+    if (UserBusy()) {
+        SetTimer(StepTwo, 500)
+        return
+    }
     if (TwoPhase = 0) {
         Click(Point1X, Point1Y)
         ToolTip("点了点 1 (" Point1X ", " Point1Y ")")
@@ -822,6 +871,10 @@ StepTwo() {
 
 StepRight() {
     global RightX, RightY
+    ; 你动了鼠标/键盘就暂停，不点，下次定时到了再试。
+    if (UserBusy()) {
+        return
+    }
     Click(RightX, RightY, "Right")
     ToolTip("右键点了 (" RightX ", " RightY ")")
 }
@@ -885,10 +938,25 @@ ToggleClickHotkey(*) {
     }
 }
 
+; F8 = 手动暂停 / 继续（轮询和开箱子都停，再按一次继续，
+; 阶段计时跟着停；不用 F8 也行，动鼠标/键盘会自动暂停，
+; 3 秒无操作后自动继续）。
+ToggleManualPause(*) {
+    global ManualPaused
+    ManualPaused := !ManualPaused
+    if (ManualPaused) {
+        ToolTip("Paused manually (F8), press F8 again to resume")
+    } else {
+        ToolTip()
+    }
+}
+
 ; ===== 快捷键 =====
-; F11 = 桌面轮询 开启 / 暂停
+; F8  = 手动暂停 / 继续
+; F11 = 桌面轮询 开启 / 停止（再启动会从校准重新开始）
 ; F12 = 开箱子 开启 / 暂停
 ; F9  = 统一暂停（全部停止，不退出程序，窗口还在，可再启动）
+F8::ToggleManualPause()
 F11::ToggleDesktop()
 F12::ToggleClickHotkey()
 F9::StopAll()
