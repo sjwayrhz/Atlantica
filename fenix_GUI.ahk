@@ -3,7 +3,7 @@
 #Include FindText.ahk
 
 ; ============================================================
-; Atlantica 功能菜单（图形界面版，AHK v2）
+; fenix 功能菜单（图形界面版，AHK v2）
 ; 原来的两个脚本已经合并到这一个窗口里，
 ; 不会出现两个脚本都抢 F8 的冲突。
 ;
@@ -67,7 +67,7 @@
 ; 使用：双击运行本脚本，点按钮或按快捷键即可。
 ;       F11 开关桌面轮询，F12 开关开箱子，F9 统一暂停（不退出）。
 ;       点“保存配置”会把界面里当前填的坐标、间隔、按键存到
-;       同目录的 Atlantica_Config.ini，下次打开自动恢复。
+;       同目录的 fenix_Config.ini，下次打开自动恢复。
 ;       关窗口或点“退出”即全部停止并退出。
 ; 注意：功能 1 需要 VirtualDesktopAccessor.dll 和 FindText.ahk
 ;       都放在本脚本同目录，DLL 版本要和你的
@@ -165,7 +165,7 @@ RightClickInterval := 3500
 
 ; ===== 配置文件（保存配置按钮用，下次打开自动恢复）=====
 ; 文件不存在时用下面这些默认值，保存过一次后就用保存过的值。
-ConfigFile := A_ScriptDir "\Atlantica_Config.ini"
+ConfigFile := A_ScriptDir "\fenix_Config.ini"
 CfgDesktopWait := IniRead(ConfigFile, "Desktop", "WaitMs", "1000")
 CfgDesktopKey := IniRead(ConfigFile, "Desktop", "Key", "g")
 CfgSwitchX := IniRead(ConfigFile, "Desktop", "SwitchX", "212")
@@ -181,7 +181,7 @@ CfgRightY := IniRead(ConfigFile, "Click", "RightY", "593")
 CfgRightInterval := IniRead(ConfigFile, "Click", "RightInterval", "3500")
 
 ; ===== 图形界面 =====
-MyGui := Gui(, "Atlantica 功能菜单")
+MyGui := Gui(, "fenix 功能菜单")
 MyGui.SetFont("s10")
 
 MyGui.Add("Text", "x10 y10 w360", "打开后点下面的功能按钮即可开始，再点一次停止。")
@@ -359,11 +359,11 @@ CheckPaused() {
     return true
 }
 
-; 把一次找到的结果记到脚本同目录的 Atlantica_Find_Log.txt，
+; 把一次找到的结果记到脚本同目录的 fenix_Find_Log.txt，
 ; 方便查为什么会认错（坐标和找到哪个图案都在里面）。
 LogFind(Msg) {
     try {
-        FileAppend(Format("{:02d}:{:02d}:{:02d} ", A_Hour, A_Min, A_Sec) . Msg . "`n", A_ScriptDir . "\Atlantica_Find_Log.txt", "UTF-8")
+        FileAppend(Format("{:02d}:{:02d}:{:02d} ", A_Hour, A_Min, A_Sec) . Msg . "`n", A_ScriptDir . "\fenix_Find_Log.txt", "UTF-8")
     } catch {
     }
 }
@@ -952,7 +952,7 @@ StopAll(*) {
 
 ; ===== 保存配置 =====
 ; 保存的是界面里当前填的值（不是正在运行的那份旧值），
-; 存到脚本同目录的 Atlantica_Config.ini，下次打开自动恢复。
+; 存到脚本同目录的 fenix_Config.ini，下次打开自动恢复。
 ; 正在运行时点保存也不会停掉正在跑的功能。
 SaveConfig(*) {
     global ConfigFile
