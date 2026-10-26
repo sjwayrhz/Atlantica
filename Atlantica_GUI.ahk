@@ -21,11 +21,13 @@
 ;      用 FindText 找图标：亮版一个 42x35 的黑白图案（阈值 120，
 ;      从你发的截图转出来的），亮版是浅底深剑；暗版图案只用来
 ;      定位要点的图标位置，不参与亮暗判断。放映机图标一个
-;      45x39 的图案（阈值 68）。之前用的 ImageSearch 模板图
-;      里带了会变的数字和游戏背景角，数字一变、背景一换就整张
-;      对不上，所以完全找不到；FindText 只比图案本身的明暗形状，
-;      容错 0.1，数字变了也不影响。记下图标中心后，只在记录位
-;      置附近找。
+;      45x39 的图案（阈值 68）。亮版图案找到后，还要在图标中心
+;      附近取 6 个背景点验亮度（平均大于 120 才是真亮色），因为
+;      暗版图标顶上有亮边，图案会认错，亮度能把它拦下来。
+;      之前用的 ImageSearch 模板图里带了会变的数字和游戏背景角，
+;      数字一变、背景一换就整张对不上，所以完全找不到；FindText
+;      只比图案本身的明暗形状，容错 0.1，数字变了也不影响。
+;      记下图标中心后，只在记录位置附近找。
 ;      第 1 步 检测 15 秒：
 ;        同时在每个桌面找放映机图标和状态图标，记下各自中心
 ;        的坐标，光标旁会提示找到没有；这 15 秒只检测、不点
@@ -408,16 +410,49 @@ FindProjector(Idx, &OutX, &OutY) {
     return Found
 }
 
-; 找亮版状态图标（只判断亮色用）：找到就是亮色。
+; 在图标中心附近取 6 个背景点的亮度，平均值大于 120 才是真亮色。
+; 亮版底色是浅蓝（这 6 点平均约 157），暗版底色是深紫（平均约
+; 67，顶上有亮边的那张约 86），阈值 120 两边都留了余量。取色
+; 点避开了双剑、数字、边框和顶上的亮边，只取实心底色。
+IconBright(CX, CY) {
+    Sum := 0
+    N := 0
+    for Pt in [[-12, 0], [12, 0], [-14, 8], [14, 8], [-14, -8], [14, -8]] {
+        try {
+            C := PixelGetColor(CX + Pt[1], CY + Pt[2])
+            R := (C >> 16) & 0xFF
+            G := (C >> 8) & 0xFF
+            B := C & 0xFF
+            Sum += (R * 38 + G * 75 + B * 15) // 128
+            N++
+        } catch {
+        }
+    }
+    if (N = 0) {
+        return false
+    }
+    Avg := Sum // N
+    LogFind("brightness at (" CX "," CY ") avg " Avg)
+    return (Avg > 120)
+}
+
+; 找亮版状态图标（只判断亮色用）：找到亮版图案，还要用背景亮度
+; 再确认一次是真亮色（亮版底色浅蓝，暗版底色深紫）。图案认错
+; 的时候（比如暗版图标顶上有亮边），亮度会把它拦下来，当非亮色。
 FindBright(Idx, &OutX, &OutY) {
     global BrightText, CalStatusX, CalStatusY
     RX := (Idx >= 1 && Idx <= CalStatusX.Length) ? CalStatusX[Idx] : 0
     RY := (Idx >= 1 && Idx <= CalStatusY.Length) ? CalStatusY[Idx] : 0
     Found := FindIcon(BrightText, RX, RY, &OutX, &OutY)
-    if (Found) {
-        LogFind("D" . Idx . " icon bright FOUND (" . OutX . "," . OutY . ")")
+    if (!Found) {
+        return false
     }
-    return Found
+    if (!IconBright(OutX, OutY)) {
+        LogFind("D" . Idx . " icon bright pattern found at (" . OutX . "," . OutY . ") but brightness says dark, treat as non-bright")
+        return false
+    }
+    LogFind("D" . Idx . " icon bright FOUND (" . OutX . "," . OutY . ")")
+    return true
 }
 
 ; 找暗版状态图标（只用来定位要点的图标，不参与亮暗判断）：
