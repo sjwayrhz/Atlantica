@@ -61,6 +61,7 @@
 ; ============================================================
 
 CoordMode("Mouse", "Screen")
+CoordMode("Pixel", "Screen")
 
 ; ===== 功能 1 的 DLL（先加载，失败也不影响功能 2）=====
 DllPath := A_ScriptDir "\VirtualDesktopAccessor.dll"
@@ -125,10 +126,15 @@ VerifyTarget := ""      ; 正在验证的目标："bright" 或 "dark"
 TextBlocker := "|<icon>*77$45.Tzzzzzzvzzzzzzzzzzzzzzz0000003Hzzzzzz+Tzzzzzxrzzzzzzizz3zzzxLzk7zzzizyEzzzxrzU6TzzizwUw1zxLzU7sHzizyUsGzxLzoT3Fzezy0s8DxLzm76bzizkFw3zxrw0AYTziz001UTxLs0D0Bzey80y0jxrl00k1jiz900CRxrxb007zizlz0Dzxrz3z1zzizs7z7zxLzY7lzzizws6DzxrznsDzzizzDszzxrzyTzzzizzwzzjxrzztzzzizzztzzxrzzzzzzjzzzzzzzw000000w"
 ; 状态按钮：圆形金框圆盘的顶部条带（45x10，没有数字，也没有
 ; 截图四角的游戏背景），亮版和暗版各一个图案，哪个找到就是哪个。
+; 诊断发现：1 号桌面的亮色图标只在容错 0.2 才找得到（位置也
+; 和 2、3 号不同），而暗色图案在 0.2 全屏时会误匹配屏幕左上角
+; (35,111)。所以找状态按钮时先用 0.1，找不到再用 0.2；有校准
+; 记录后只在记录位置附近找；0.2 找到的再用盘心亮度确认一次。
 TextBright := "|<bright_top>*138$45.zzz0zzzzzw00Dzzzy7zsTzzz3U1kzzzVU01lzzsU0037zyM0006Tza0000Nzt00001byE03U06TU"
 TextDark := "|<dark_top>*110$45.zzzU1zzzzz001zzzzU001zzzk7zs3zzw7zzwDzz3zzzszzkzzzzXzwTzzzzDz7zzzzwzlzzzzznU"
 FindErr1 := 0.1         ; FindText 容错，图标像素（0.1 = 10%）
 FindErr0 := 0.1         ; FindText 容错，背景像素（0.1 = 10%）
+FindErrLoose := 0.2     ; FindText 宽松容错，严格容错找不到时再用
 
 ClickMode := ""         ; "" = 未运行，"both" = 两种同时，"right" = 仅右键（抽奖），"two" = 仅两点点击（合成）
 TwoRunning := false
@@ -410,6 +416,105 @@ FindOne(Text, &OutX, &OutY) {
     return (ok.Length > 0)
 }
 
+; 在指定矩形里找一个图案（坐标会夹到屏幕内）。
+SearchRegion(Text, Err, X1, Y1, X2, Y2, &OutX, &OutY) {
+    OutX := 0
+    OutY := 0
+    if (X1 < 0) {
+        X1 := 0
+    }
+    if (Y1 < 0) {
+        Y1 := 0
+    }
+    if (X2 > A_ScreenWidth) {
+        X2 := A_ScreenWidth
+    }
+    if (Y2 > A_ScreenHeight) {
+        Y2 := A_ScreenHeight
+    }
+    try {
+        ok := FindText(&OutX, &OutY, X1, Y1, X2, Y2, Err, Err, Text)
+    } catch {
+        return false
+    }
+    return (ok.Length > 0)
+}
+
+; 一个点的灰度（FindText 同款公式），取色失败会抛错。
+PixelGray(X, Y) {
+    C := PixelGetColor(X, Y)
+    R := (C >> 16) & 0xFF
+    G := (C >> 8) & 0xFF
+    B := C & 0xFF
+    return (R * 38 + G * 75 + B * 15) // 128
+}
+
+; 确认图案中心的圆盘是不是要找的颜色：亮色盘心平均灰度
+; 约 221，暗色约 58，阈值 140。PX/PY 是图案中心。
+; 取盘心上下各 18 像素的两点取平均，避开数字和中间星形。
+ConfirmDisc(IsBright, PX, PY) {
+    try {
+        G1 := PixelGray(PX, PY + 2)
+        G2 := PixelGray(PX, PY + 38)
+    } catch {
+        return false
+    }
+    Avg := (G1 + G2) // 2
+    if (IsBright) {
+        return Avg > 140
+    }
+    return Avg < 140
+}
+
+; 找状态按钮（亮色或暗色图案）。
+; Idx 是桌面序号（从 1 开始）。有校准记录时只在记录位置
+; 附近找（±80/±60），这样屏幕别处的误匹配就进不来；
+; 没记录时才全屏找。宽松容错 0.2 找到的要再用盘心亮度
+; 确认一次。暗色图案在全屏宽松容错下会在屏幕左上角误
+; 匹配（诊断里 0.2 的 Dark 在 (35,111) 三个桌面都出现），
+; 所以没记录时暗色只用严格容错 0.1，不用宽松容错。
+FindStatus(Idx, Text, IsBright, &OutX, &OutY) {
+    global CalStatusX, CalStatusY, FindErr1, FindErrLoose, CenterOffsetY
+    OutX := 0
+    OutY := 0
+    HasRecord := (Idx >= 1 && Idx <= CalStatusX.Length && CalStatusX[Idx] != 0)
+    if (HasRecord) {
+        PX := CalStatusX[Idx]
+        PY := CalStatusY[Idx] - CenterOffsetY
+        if (SearchRegion(Text, FindErr1, PX - 80, PY - 60, PX + 80, PY + 60, &OutX, &OutY)) {
+            return true
+        }
+        if (SearchRegion(Text, FindErrLoose, PX - 80, PY - 60, PX + 80, PY + 60, &OutX, &OutY)) {
+            if (ConfirmDisc(IsBright, OutX, OutY)) {
+                return true
+            }
+            OutX := 0
+            OutY := 0
+        }
+        return false
+    }
+    ; 没记录：全屏找。亮色可以放宽到 0.2（要亮度确认），
+    ; 暗色只用 0.1，避免左上角误匹配。
+    if (FindOne(Text, &OutX, &OutY)) {
+        return true
+    }
+    if (IsBright) {
+        OutX := 0
+        OutY := 0
+        try {
+            ok := FindText(&OutX, &OutY, 0, 0, A_ScreenWidth, A_ScreenHeight, FindErrLoose, FindErrLoose, Text)
+        } catch {
+            return false
+        }
+        if (ok.Length > 0 && ConfirmDisc(IsBright, OutX, OutY)) {
+            return true
+        }
+        OutX := 0
+        OutY := 0
+    }
+    return false
+}
+
 IsBlockerPresent() {
     global TextBlocker
     X := 0
@@ -418,13 +523,13 @@ IsBlockerPresent() {
 }
 
 IsBrightPresent(&OutX, &OutY) {
-    global TextBright
-    return FindOne(TextBright, &OutX, &OutY)
+    global TextBright, CurrentDesktop
+    return FindStatus(CurrentDesktop + 1, TextBright, true, &OutX, &OutY)
 }
 
 IsDarkPresent(&OutX, &OutY) {
-    global TextDark
-    return FindOne(TextDark, &OutX, &OutY)
+    global TextDark, CurrentDesktop
+    return FindStatus(CurrentDesktop + 1, TextDark, false, &OutX, &OutY)
 }
 
 ; 决定要不要按 X：只有看到等待图标、没看到状态按钮时才按。
