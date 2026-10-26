@@ -449,21 +449,41 @@ PixelGray(X, Y) {
     return (R * 38 + G * 75 + B * 15) // 128
 }
 
-; 确认图案中心的圆盘是不是要找的颜色：亮色盘心平均灰度
-; 约 221，暗色约 58，阈值 140。PX/PY 是图案中心。
-; 取盘心上下各 18 像素的两点取平均，避开数字和中间星形。
-ConfirmDisc(IsBright, PX, PY) {
+; 取盘心上下各 18 像素的两点灰度，避开数字和中间星形。
+; 成功返回 true，取色失败返回 false。
+DiscGrays(PX, PY, &G1, &G2) {
+    G1 := 0
+    G2 := 0
     try {
         G1 := PixelGray(PX, PY + 2)
         G2 := PixelGray(PX, PY + 38)
     } catch {
         return false
     }
-    Avg := (G1 + G2) // 2
-    if (IsBright) {
-        return Avg > 140
+    return true
+}
+
+; 确认图案中心的圆盘是不是要找的颜色：亮色盘心两点灰度
+; 都约 200 以上，暗色都约 60 以下，阈值 140。PX/PY 是图案中心。
+; 两点都要符合才算，不能只取平均——一点落在白色数字或金框
+; 上很亮，另一点是暗的，平均也会超过 140，就会把暗色认成亮色。
+ConfirmDisc(IsBright, PX, PY, &G1, &G2) {
+    if (!DiscGrays(PX, PY, &G1, &G2)) {
+        return false
     }
-    return Avg < 140
+    if (IsBright) {
+        return (G1 > 140 && G2 > 140)
+    }
+    return (G1 < 140 && G2 < 140)
+}
+
+; 把一次找到/排除的记录写到脚本同目录的 Atlantica_Find_Log.txt，
+; 方便查为什么会认错（坐标和两点灰度都在里面）。
+LogFind(Msg) {
+    try {
+        FileAppend(Format("{:02d}:{:02d}:{:02d} ", A_Hour, A_Min, A_Sec) . Msg . "`n", A_ScriptDir . "\Atlantica_Find_Log.txt", "UTF-8")
+    } catch {
+    }
 }
 
 ; 找状态按钮（亮色或暗色图案）。
@@ -478,16 +498,22 @@ FindStatus(Idx, Text, IsBright, &OutX, &OutY) {
     OutX := 0
     OutY := 0
     HasRecord := (Idx >= 1 && Idx <= CalStatusX.Length && CalStatusX[Idx] != 0)
+    PatName := IsBright ? "Bright" : "Dark"
     if (HasRecord) {
         PX := CalStatusX[Idx]
         PY := CalStatusY[Idx] - CenterOffsetY
         if (SearchRegion(Text, FindErr1, PX - 80, PY - 60, PX + 80, PY + 60, &OutX, &OutY)) {
+            LogFind("D" . Idx . " " . PatName . " region 0.1 FOUND (" . OutX . "," . OutY . ")")
             return true
         }
+        G1 := 0
+        G2 := 0
         if (SearchRegion(Text, FindErrLoose, PX - 80, PY - 60, PX + 80, PY + 60, &OutX, &OutY)) {
-            if (ConfirmDisc(IsBright, OutX, OutY)) {
+            if (ConfirmDisc(IsBright, OutX, OutY, &G1, &G2)) {
+                LogFind("D" . Idx . " " . PatName . " region 0.2 FOUND (" . OutX . "," . OutY . ") gray " . G1 . "/" . G2)
                 return true
             }
+            LogFind("D" . Idx . " " . PatName . " region 0.2 rejected by brightness (" . OutX . "," . OutY . ") gray " . G1 . "/" . G2)
             OutX := 0
             OutY := 0
         }
@@ -496,18 +522,25 @@ FindStatus(Idx, Text, IsBright, &OutX, &OutY) {
     ; 没记录：全屏找。亮色可以放宽到 0.2（要亮度确认），
     ; 暗色只用 0.1，避免左上角误匹配。
     if (FindOne(Text, &OutX, &OutY)) {
+        LogFind("D" . Idx . " " . PatName . " full 0.1 FOUND (" . OutX . "," . OutY . ")")
         return true
     }
     if (IsBright) {
         OutX := 0
         OutY := 0
+        G1 := 0
+        G2 := 0
         try {
             ok := FindText(&OutX, &OutY, 0, 0, A_ScreenWidth, A_ScreenHeight, FindErrLoose, FindErrLoose, Text)
         } catch {
             return false
         }
-        if (ok.Length > 0 && ConfirmDisc(IsBright, OutX, OutY)) {
-            return true
+        if (ok.Length > 0) {
+            if (ConfirmDisc(IsBright, OutX, OutY, &G1, &G2)) {
+                LogFind("D" . Idx . " " . PatName . " full 0.2 FOUND (" . OutX . "," . OutY . ") gray " . G1 . "/" . G2)
+                return true
+            }
+            LogFind("D" . Idx . " " . PatName . " full 0.2 rejected by brightness (" . OutX . "," . OutY . ") gray " . G1 . "/" . G2)
         }
         OutX := 0
         OutY := 0
