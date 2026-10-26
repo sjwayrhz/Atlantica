@@ -20,21 +20,21 @@
 ;      找（图标在当前桌面上，图标位置的窗口就是当前这个桌面的
 ;      游戏窗口）。
 ;      轮询时先看放映机图标和状态图标：放映机图标在、并且是
-;      亮色，就只按 X、不按 G；其他情况按 G，放映机图标在才
+;      非暗色，就只按 X、不按 G；其他情况按 G，放映机图标在才
 ;      在约 0.05 秒后按 X。
 ;      状态图标是交叉双剑的方形图标：亮版底色浅蓝、暗版底色
-;      深紫，图标里的数字会变，只认图案不看数字。只判断亮色：
-;      找到亮版图案就是亮色，没找到就当非亮色（暗色），不单
-;      独判断暗色。放映机图标是附件里那张放映机截图（45x39），
+;      深紫，图标里的数字会变，只认图案不看数字。只判断暗色：
+;      找到暗版图案就是暗色，没找到就当非暗色（亮色），不单
+;      独判断亮色。放映机图标是附件里那张放映机截图（45x39），
 ;      它在才说明能按 X、能点状态图标。
-;      用 FindText 找图标：亮版一个 42x35 的黑白图案（阈值 120，
-;      从你发的截图转出来的），亮版是浅底深剑；暗版图案只用来
-;      定位要点的图标位置，不参与亮暗判断。放映机图标一个
-;      45x39 的图案（阈值 68）。亮版图案找到后，还要在图标中心
-;      附近取一个 5x5 网格验亮度（亮点过半才是真亮色），因为
-;      暗版图标顶上有亮边，图案会认错，亮度能把它拦下来。
+;      用 FindText 找图标：暗版一个 42x35 的黑白图案（阈值 120，
+;      从你发的截图转出来的），暗版是深底浅剑；亮版图案只用来
+;      定位亮色图标的位置、记下坐标，不参与亮暗判断。放映机图标一个
+;      45x39 的图案（阈值 68）。暗版图案找到后，还要在图标中心
+;      附近取一个 5x5 网格验亮度（亮点不到一半才是真暗色），因为
+;      亮版图标底色浅、亮点多，图案万一认错亮版，亮度能把它拦下来。
 ;      记下位置后只在记录位置附近（中心 ±60/±50）找，范围收
-;      小了，屏幕别处的亮色误匹配进不来。
+;      小了，屏幕别处的暗色误匹配进不来。
 ;      之前用的 ImageSearch 模板图里带了会变的数字和游戏背景角，
 ;      数字一变、背景一换就整张对不上，所以完全找不到；FindText
 ;      只比图案本身的明暗形状，容错 0.1，数字变了也不影响。
@@ -45,9 +45,9 @@
 ;        图标，按 G 还是按 X 和轮询一样。
 ;      第 2 步 一直轮询：
 ;        每轮到一个桌面：先看放映机图标和状态图标；放映机图标
-;        在、并且是亮色，就只按 X、不按 G；其他情况按 G，放映
+;        在、并且是非暗色，就只按 X、不按 G；其他情况按 G，放映
 ;        机图标在才在约 0.05 秒后按 X；放映机图标在、并且状态
-;        图标是非亮色，才点状态图标一下，尝试帮它变亮色。放映
+;        图标是暗色，才点状态图标一下，尝试帮它变亮色。放映
 ;        机图标不在，就只按 G，不按 X、不点。一直重复。
 ;      暂停：按 F8 手动暂停（轮询和开箱子都停），再按一次
 ;      F8 继续；检测 15 秒的计时暂停时也跟着停（暂停多久
@@ -131,9 +131,9 @@ CheckProjFound := false ; 这轮检查：放映机图标在不在（check 步记
 ; 42x35，阈值 120，从你发的两张截图裁出来的图标方形转的
 ; （亮版取 y 7-41、暗版取 y 2-36，都是 x 3-44）。亮版是浅底
 ; 深剑（暗像素只占约 9%），暗版是深底浅剑（暗像素约 83%），
-; 两个图案几乎是反的，互相认不到对方。亮暗判断只看亮版图案：
-; 找到亮版就是亮色，没找到就当非亮色；暗版图案只用来定位
-; 要点的图标位置，不参与亮暗判断。
+; 两个图案几乎是反的，互相认不到对方。亮暗判断只看暗版图案：
+; 找到暗版就是暗色，没找到就当非暗色（亮色）；亮版图案只用来
+; 定位亮色图标的位置、记下坐标，不参与亮暗判断。
 ; 放映机图标：附件里那张放映机截图，45x39，阈值 68，整个图
 ; 标转的图案，里面没有会变的数字。它在不在，决定按不按 X、
 ; 点不点状态图标。
@@ -235,7 +235,7 @@ btnSaveConfig := MyGui.Add("Button", "x132 y365 w115 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", SaveConfig)
 btnExit := MyGui.Add("Button", "x254 y365 w115 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
-MyGui.Add("Text", "x10 y405 w360 h50", "提示：F11 桌面轮询（先检测 15 秒，再一直轮询；放映机图标在才按 X、才点非亮色的状态图标），F12 开箱子，F9 全部停止（不退出）。F8 手动暂停/继续。功能 1 需要同目录下的 VirtualDesktopAccessor.dll 和 FindText.ahk，DLL 版本须匹配 Windows。")
+MyGui.Add("Text", "x10 y405 w360 h50", "提示：F11 桌面轮询（先检测 15 秒，再一直轮询；放映机图标在才按 X、才点暗色的状态图标），F12 开箱子，F9 全部停止（不退出）。F8 手动暂停/继续。功能 1 需要同目录下的 VirtualDesktopAccessor.dll 和 FindText.ahk，DLL 版本须匹配 Windows。")
 MyGui.OnEvent("Close", (*) => ExitApp())
 
 ; DLL 没加载成功时，禁用功能 1，不影响功能 2
@@ -250,7 +250,7 @@ MyGui.Show("w380 h460")
 ; F11 或点按钮启动：先检测 15 秒（轮询按 G，记录放映机图标
 ; 和状态图标的位置），再一直轮询，直到再按 F11 或 F9 停掉。
 ; 轮询时每轮按 G；放映机图标在，才按 X；放映机图标在、
-; 并且状态图标是非亮色，才点状态图标一下，尝试变亮色。
+; 并且状态图标是暗色，才点状态图标一下，尝试变亮色。
 ToggleDesktop(*) {
     global DesktopRunning, DesktopPhase, DesktopWaitMs, DesktopKey, SwitchClickX, SwitchClickY
     global btnDesktop, txtDesktopStatus, edtDesktopWait, edtDesktopKey, edtSwitchX, edtSwitchY
@@ -308,7 +308,7 @@ StartCyclePhase(NewPhase) {
     if (NewPhase = "detect") {
         txtDesktopStatus.Text := "状态：检测 15 秒（轮询按 G，记录放映机图标和状态图标位置）"
     } else if (NewPhase = "main") {
-        txtDesktopStatus.Text := "状态：轮询中（放映机图标在才按 X，非亮色才点状态图标）"
+        txtDesktopStatus.Text := "状态：轮询中（放映机图标在才按 X，暗色才点状态图标）"
     }
 }
 ; 检查当前阶段是否该结束了，结束了就切到下一阶段，返回 true。
@@ -455,9 +455,10 @@ IconBright(CX, CY) {
     return (Frac > 0.5)
 }
 
-; 找亮版状态图标（只判断亮色用）：找到亮版图案，还要用背景亮度
-; 再确认一次是真亮色（亮版底色浅蓝，暗版底色深紫）。图案认错
-; 的时候（比如暗版图标顶上有亮边），亮度会把它拦下来，当非亮色。
+; 找亮版状态图标（只用来定位亮色图标的位置、记下坐标，不参与
+; 亮暗判断）：找到亮版图案，还要用背景亮度再确认一次是真亮色
+; （亮版底色浅蓝，暗版底色深紫）。图案认错的时候（比如暗版图标
+; 顶上有亮边），亮度会把它拦下来，当没找到。
 FindBright(Idx, &OutX, &OutY) {
     global BrightText, CalStatusX, CalStatusY
     RX := (Idx >= 1 && Idx <= CalStatusX.Length) ? CalStatusX[Idx] : 0
@@ -467,24 +468,30 @@ FindBright(Idx, &OutX, &OutY) {
         return false
     }
     if (!IconBright(OutX, OutY)) {
-        LogFind("D" . Idx . " icon bright pattern found at (" . OutX . "," . OutY . ") but brightness says dark, treat as non-bright")
+        LogFind("D" . Idx . " icon bright pattern found at (" . OutX . "," . OutY . ") but brightness says dark, treat as not found")
         return false
     }
     LogFind("D" . Idx . " icon bright FOUND (" . OutX . "," . OutY . ")")
     return true
 }
 
-; 找暗版状态图标（只用来定位要点的图标，不参与亮暗判断）：
-; 亮版没找到时，用它找非亮色图标在哪，好点它一下。
+; 找暗版状态图标（判断暗色用）：找到暗版图案，还要用背景亮度
+; 再确认一次是真暗色（暗版底色深紫，亮版底色浅蓝）。图案认错
+; 的时候，亮度会把它拦下来，当非暗色（亮色）。
 FindDark(Idx, &OutX, &OutY) {
     global DarkText, CalStatusX, CalStatusY
     RX := (Idx >= 1 && Idx <= CalStatusX.Length) ? CalStatusX[Idx] : 0
     RY := (Idx >= 1 && Idx <= CalStatusY.Length) ? CalStatusY[Idx] : 0
     Found := FindIcon(DarkText, RX, RY, &OutX, &OutY)
-    if (Found) {
-        LogFind("D" . Idx . " icon dark FOUND (" . OutX . "," . OutY . ")")
+    if (!Found) {
+        return false
     }
-    return Found
+    if (IconBright(OutX, OutY)) {
+        LogFind("D" . Idx . " icon dark pattern found at (" . OutX . "," . OutY . ") but brightness says bright, treat as non-dark")
+        return false
+    }
+    LogFind("D" . Idx . " icon dark FOUND (" . OutX . "," . OutY . ")")
+    return true
 }
 
 ; 按窗口标题激活当前桌面上的游戏窗口：标题是 "Atlantica Online Fenix"，
@@ -578,9 +585,9 @@ DetectSummary() {
 ; 轮询主循环：一个定时器驱动的状态机，每步做完再约下一步。
 ; 每轮：切桌面 -> 停 0.5 秒 -> 激活游戏窗口（先按标题找，找不到再用图标位置） -> 点 (212,57) -> 停 0.5 秒
 ; -> 原地点一下 -> 等 1000 毫秒 -> 检查放映机图标和状态图标
-; （放映机图标在、并且是亮色，就只按 X、不按 G；其他情况
+; （放映机图标在、并且是非暗色，就只按 X、不按 G；其他情况
 ; 按 G，放映机图标在才在约 0.05 秒后按 X；放映机图标在、
-; 状态图标非亮色，才点状态图标）。检测阶段只记录位置和按
+; 状态图标是暗色，才点状态图标）。检测阶段只记录位置和按
 ; G/X，不点图标。
 StepDesktop() {
     global DesktopRunning, CyclePhase, CycleStart, DesktopPhase, DesktopNext, CurrentDesktop
@@ -656,7 +663,7 @@ StepDesktop() {
 ; 检测检查：每轮到一个桌面就找一次放映机图标和状态图标，
 ; 找到就记下各自中心坐标，光标旁提示找到没有。这 15 秒
 ; 只检测、不点图标；按 G 还是按 X 和轮询一样（放映机图标
-; 在、并且是亮色就只按 X，其他情况按 G，放映机图标在才
+; 在、并且是非暗色就只按 X，其他情况按 G，放映机图标在才
 ; 在约 0.05 秒后按 X）。
 DetectStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, txtDesktopStatus
@@ -671,29 +678,29 @@ DetectStep() {
         CalProjX[Idx] := PX
         CalProjY[Idx] := PY
     }
-    BX := 0
-    BY := 0
-    BrightFound := FindBright(Idx, &BX, &BY)
+    DX := 0
+    DY := 0
+    DarkFound := FindDark(Idx, &DX, &DY)
     State := ""
-    if (BrightFound) {
-        CalStatusX[Idx] := BX
-        CalStatusY[Idx] := BY
-        State := "bright"
+    if (DarkFound) {
+        CalStatusX[Idx] := DX
+        CalStatusY[Idx] := DY
+        State := "dark"
     } else {
-        DX := 0
-        DY := 0
-        if (FindDark(Idx, &DX, &DY)) {
-            CalStatusX[Idx] := DX
-            CalStatusY[Idx] := DY
-            State := "non-bright"
+        BX := 0
+        BY := 0
+        if (FindBright(Idx, &BX, &BY)) {
+            CalStatusX[Idx] := BX
+            CalStatusY[Idx] := BY
+            State := "non-dark"
         } else {
             State := "not found"
         }
     }
     CalOK[Idx] := (CalStatusX[Idx] != 0)
     ; 检测阶段也按轮询的规则按 G/X，只是绝不点图标。
-    if (ProjFound && BrightFound) {
-        Send(DesktopKey2)   ; 放映机图标在、并且是亮色，只按 X、不按 G
+    if (ProjFound && !DarkFound) {
+        Send(DesktopKey2)   ; 放映机图标在、并且是非暗色，只按 X、不按 G
     } else {
         Send(DesktopKey)    ; 其他情况按 G
         if (ProjFound) {
@@ -709,11 +716,11 @@ DetectStep() {
 }
 
 ; 轮询检查：每轮到一个桌面就先找放映机图标和状态图标，
-; 再按下面规则做。只判断亮色：找到亮版图案就是亮色，
-; 没找到就当非亮色。
-;   1. 放映机图标在、并且是亮色：只按 X，不按 G，不点。
+; 再按下面规则做。只判断暗色：找到暗版图案就是暗色，
+; 没找到就当非暗色（亮色）。
+;   1. 放映机图标在、并且是非暗色：只按 X，不按 G，不点。
 ;   2. 其他情况：按 G；放映机图标在，才在约 0.05 秒后按 X。
-;   3. 放映机图标在、并且是非亮色，才点状态图标一下，
+;   3. 放映机图标在、并且是暗色，才点状态图标一下，
 ;      尝试帮它变亮色；点完下轮再来检查，不单独验证。
 MainCheckStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey, DesktopKey2, KeyGapMs
@@ -727,17 +734,26 @@ MainCheckStep() {
         CalProjX[Idx] := PX
         CalProjY[Idx] := PY
     }
-    BX := 0
-    BY := 0
-    BrightFound := FindBright(Idx, &BX, &BY)
-    if (BrightFound) {
-        CalStatusX[Idx] := BX
-        CalStatusY[Idx] := BY
+    DX := 0
+    DY := 0
+    DarkFound := FindDark(Idx, &DX, &DY)
+    if (DarkFound) {
+        CalStatusX[Idx] := DX
+        CalStatusY[Idx] := DY
+    } else {
+        ; 非暗色：顺便找一下亮版图案，把亮色图标的位置也记下来，
+        ; 下次找暗版时只在附近找，范围小、不容易认错别处。
+        BX := 0
+        BY := 0
+        if (FindBright(Idx, &BX, &BY)) {
+            CalStatusX[Idx] := BX
+            CalStatusY[Idx] := BY
+        }
     }
-    if (ProjFound && BrightFound) {
-        ; 放映机图标在、并且是亮色：只按 X，不按 G，不点。
+    if (ProjFound && !DarkFound) {
+        ; 放映机图标在、并且是非暗色（亮色）：只按 X，不按 G，不点。
         Send(DesktopKey2)
-        ToolTip("Desktop " Idx ": projector yes, bright, X only, no G, no click")
+        ToolTip("Desktop " Idx ": projector yes, non-dark, X only, no G, no click")
         DesktopPhase := "switch"
         SetTimer(StepDesktop, DesktopWaitMs)
         return
@@ -749,9 +765,9 @@ MainCheckStep() {
 }
 
 ; 按 X 和点图标（轮询检查的下一步，约 0.05 秒后）。
-; 放映机图标在才按 X；放映机图标在、并且是非亮色，才点
+; 放映机图标在才按 X；放映机图标在、并且是暗色，才点
 ; 状态图标一下。这里找暗版图案是再确认一次：按完 G 之后
-; 如果图标已经变亮了，暗版图案就找不到了，也就不会点错。
+; 如果图标已经变亮了（非暗色），暗版图案就找不到了，也就不会点错。
 PressXStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey2, CheckProjFound
     global CalStatusX, CalStatusY
@@ -764,7 +780,7 @@ PressXStep() {
         return
     }
     Send(DesktopKey2)   ; 放映机图标在，才按 X
-    ; 到这里一定是非亮色（亮色的话检查步已经只按 X、直接回去了）。
+    ; 到这里一定是暗色（非暗色的话检查步已经只按 X、直接回去了）。
     ; 再找暗版图案确认一次：按完 G 之后如果图标已经变亮了，
     ; 暗版图案就找不到了，也就不会点错。
     DX := 0
@@ -773,9 +789,9 @@ PressXStep() {
         CalStatusX[Idx] := DX
         CalStatusY[Idx] := DY
         Click(DX, DY)
-        ToolTip("Desktop " Idx ": projector yes, non-bright, clicked to bright")
+        ToolTip("Desktop " Idx ": projector yes, dark, clicked to bright")
     } else {
-        ToolTip("Desktop " Idx ": projector yes, non-bright, icon not found, no click")
+        ToolTip("Desktop " Idx ": projector yes, dark, icon not found, no click")
     }
     DesktopPhase := "switch"
     SetTimer(StepDesktop, DesktopWaitMs)
