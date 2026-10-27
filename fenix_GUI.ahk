@@ -214,7 +214,7 @@ CfgRightInterval := IniRead(ConfigFile, "Click", "RightInterval", "3500")
 ; 三张放进一封邮件发出去。SMTP 配置存在 fenix_Config.ini 的 [Email] 里，
 ; 自己填，不填就不发。发邮件失败时，本次运行不再试（MailBlocked），重启脚本才再试。
 CfgMailSmtp := IniRead(ConfigFile, "Email", "SmtpServer", "smtp.163.com")
-CfgMailPort := IniRead(ConfigFile, "Email", "SmtpPort", "465")
+CfgMailPort := IniRead(ConfigFile, "Email", "SmtpPort", "587")
 CfgMailUser := IniRead(ConfigFile, "Email", "SmtpUser", "")
 CfgMailPass := IniRead(ConfigFile, "Email", "SmtpPass", "")
 CfgMailTo := IniRead(ConfigFile, "Email", "MailTo", "")
@@ -955,7 +955,8 @@ DoHourlyShots() {
     To := (CfgMailTo != "") ? CfgMailTo : CfgMailUser
     Subject := "fenix 桌面截图 " CapTime
     Body := "fenix 桌面轮询整点截图（" CapTime "），附件是桌面 1 到桌面 " DesktopCount " 的截图。"
-    Cmd := 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' MailPs1File '" -SmtpServer "' CfgMailSmtp '" -Port "' CfgMailPort '" -User "' CfgMailUser '" -Pass "' CfgMailPass '" -From "' CfgMailUser '" -To "' To '" -Subject "' Subject '" -Body "' Body '" -Files "' Files '"'
+    ErrorFile := A_Temp "\fenix_shots\mail_error.txt"
+    Cmd := 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' MailPs1File '" -SmtpServer "' CfgMailSmtp '" -Port "' CfgMailPort '" -User "' CfgMailUser '" -Pass "' CfgMailPass '" -From "' CfgMailUser '" -To "' To '" -Subject "' Subject '" -Body "' Body '" -Files "' Files '" -ErrorFile "' ErrorFile '"'
     try {
         ExitCode := RunWait(Cmd, , "Hide")
     } catch {
@@ -974,7 +975,22 @@ DoHourlyShots() {
         }
     } else {
         MailBlocked := true
-        LogFind("hourly mail: send failed, disabled for this run")
+        ; 发邮件失败时，把 PowerShell 记下的真实报错也写进日志，
+        ; 不然只知道失败、不知道是密码错还是连不上。
+        ErrText := ""
+        try {
+            ErrText := Trim(FileRead(ErrorFile, "UTF-8"), "`r`n")
+        } catch {
+        }
+        try {
+            FileDelete(ErrorFile)
+        } catch {
+        }
+        if (ErrText != "") {
+            LogFind("hourly mail: send failed: " ErrText)
+        } else {
+            LogFind("hourly mail: send failed, disabled for this run")
+        }
     }
 }
 
@@ -1029,7 +1045,7 @@ EnsureMailPs1() {
     MailPs1File := A_Temp "\fenix_shots\SendMail.ps1"
     Code := "
 (
-param($SmtpServer, $Port, $User, $Pass, $From, $To, $Subject, $Body, $Files)
+param($SmtpServer, $Port, $User, $Pass, $From, $To, $Subject, $Body, $Files, $ErrorFile)
 try {
     $msg = New-Object System.Net.Mail.MailMessage
     $msg.From = $From
@@ -1048,6 +1064,12 @@ try {
     $smtp.Dispose()
     exit 0
 } catch {
+    try {
+        $m = $_.Exception.Message
+        if ($_.Exception.InnerException) { $m += ' | inner: ' + $_.Exception.InnerException.Message }
+        $m | Out-File -FilePath $ErrorFile -Encoding utf8
+    } catch {
+    }
     exit 1
 }
 )"
