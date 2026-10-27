@@ -157,6 +157,7 @@ BrightText := "|<Bright>*120$42.U000001000000000000000000000003zk00003zk10401zU2
 DarkText := "|<Dark>*120$42.U000001DzzzzzxTvzzzryTszzz7yTsTzy7yTwDzwDyTw7zsDyTz7zszyTzXVlzyTzlSXzyTzsy7zyTzwyDzyTzyETzyTzzAzzyTzzgzzyTzzGzzyTzzVzzyTzzvzzzTzzzzzzTzzzzzyTjzzzxyTjzzzxzTrvzzvzTzu1VzzTzqzSzzTz6zQzzTz63QzzTzrxSzzzzjxSzzzzjxSzzzzixSzzzzj1VzzzzTzzzzzTTzzyzzjzzzxzU"
 UnknownText := "|<Unknown>*82$46.zzzzzzzvzzzzzzzjzzzzzzzk000000yTzzzzztdzTzzyzqjwzzznzSzszzwTxfzVzzVzqjz3zwDzOzzDznzxfzwTyDzqjzszlzzOzznzDzxfzzbtzzqjzzDDzzOzzytzzxvzzxjzzrjzztzzzSzzzrzzxfzzzzzzqjzzzzzzOzzzzzzxfzzzzzzqjrzzzyzOzzzzzzxfzzzzzzqjzzzzzzOzyTztzxfztzzbzqjzzzzzzOzzzzzzxfzzzzzzqjzzzzzzOzzzPzzxfzzzzzzyjjzzzzTTzzzzzzzi000000SzzzzzzzvzzzzLzzz"
 ProjectorText := "|<projector>*79$46.s000000TDzzzzzwwzzzzzzurzzzzzzfTzVzzzyhzw3zzzurzm7zzzfTy0Nzzyhzt3y3zurzk7sLzfTzEQBTyhzx7koTurzm711zfTz8SOTyhzUXs7zurw0AgTzfTU00kTyhy03k/Turl07k5zfTY030DyhyG00Svurxj007zfTszk7zyhzkzkTzurzUzszzfTyET7zyhztkATzurznsDzzfTzbwTzyhzzbzzzurzzbzxzfTzzbzzyhzzznzzurzzzzzzfzzzzzzzj000000D"
+ProjectorTextOld := "|<projector>*68$45.Tzzzzzzv0000003Hzzzzzz+TzzzzzxLzwLzzzezz1zzzxLzk7zzzezy0zzzxLzU6T3zezw0s1zxLzU3EHzezw0sERxLzo701zezy0s0DxLzm764rezk0k1axLw084Srez001UCxLk0601zey80y0jxLl00k1jez8006NxLt0007jezUz07zxLz3z0zzezs3y7zxLzU7lzrezwM6DyxLzVs7zzezz7szzxLzwDzzzezzsTzbxLzzszbzezzzkXzxLzzzzzzfTzzzzzzQ000000vzzzzzzzSnk0008I"
 
 ClickMode := ""         ; "" = 未运行，"both" = 两种同时，"right" = 仅右键（抽奖），"two" = 仅两点点击（合成）
 TwoRunning := false
@@ -418,12 +419,17 @@ FindIcon(Pattern, RecX, RecY, &OutX, &OutY) {
 
 ; 找放映机图标（Idx 是桌面序号，从 1 开始）。
 FindProjector(Idx, &OutX, &OutY) {
-    global ProjectorText, CalProjX, CalProjY
+    global ProjectorText, ProjectorTextOld, CalProjX, CalProjY
     RX := (Idx >= 1 && Idx <= CalProjX.Length) ? CalProjX[Idx] : 0
     RY := (Idx >= 1 && Idx <= CalProjY.Length) ? CalProjY[Idx] : 0
     Found := FindIcon(ProjectorText, RX, RY, &OutX, &OutY)
     if (Found) {
         LogFind("D" . Idx . " projector FOUND (" . OutX . "," . OutY . ")")
+        return true
+    }
+    Found := FindIcon(ProjectorTextOld, RX, RY, &OutX, &OutY)
+    if (Found) {
+        LogFind("D" . Idx . " projector (old size) FOUND (" . OutX . "," . OutY . ")")
     }
     return Found
 }
