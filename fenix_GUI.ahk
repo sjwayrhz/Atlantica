@@ -517,6 +517,9 @@ ClickStatusIcon(IconX, IconY) {
         Sleep(100)
     }
     MouseMove(A_ScreenWidth // 2, 200, 5)
+    ; 点完多等 0.5 秒再走：切桌面卡顿时，点下去的输入可能还没处理完，
+    ; 马上切桌面会把这次点击带到新桌面上去，点到新桌面相同位置的按钮。
+    Sleep(500)
 }
 
 ; 找亮版状态图标（只用来定位亮色图标的位置、记下坐标，不参与
@@ -672,6 +675,36 @@ DetectSummary() {
 ; 按 G，放映机图标在才在约 0.05 秒后按 X；放映机图标在、
 ; 状态图标是暗色，才点状态图标）。检测阶段只记录位置和按
 ; G/X，不点图标。
+; 切到指定桌面，并且等切换真正完成（当前桌面号变成目标桌面）再返回。
+; 切桌面卡顿时，只等固定时间可能不够，后面的找图标会读到上一个桌面
+; 的画面，坐标记错、点错地方。最多等 2 秒，超时也继续往下走。
+GoToDesktopAndWait(DesktopNum) {
+    global GoToDesktopNumberProc, GetCurrentDesktopNumberProc
+    try {
+        DllCall(GoToDesktopNumberProc, "Int", DesktopNum)
+    } catch {
+        return
+    }
+    if (!GetCurrentDesktopNumberProc) {
+        return
+    }
+    Start := A_TickCount
+    Loop {
+        try {
+            Cur := DllCall(GetCurrentDesktopNumberProc, "Int")
+        } catch {
+            break
+        }
+        if (Cur = DesktopNum) {
+            break
+        }
+        if (A_TickCount - Start > 2000) {
+            break
+        }
+        Sleep(100)
+    }
+}
+
 StepDesktop() {
     global DesktopRunning, CyclePhase, CycleStart, DesktopPhase, DesktopNext, CurrentDesktop
     global DesktopCount, DesktopKey, KeyGapMs, GoToDesktopNumberProc, DesktopWaitMs, SwitchClickX, SwitchClickY
@@ -699,7 +732,7 @@ StepDesktop() {
     }
     if (DesktopPhase = "switch") {
         CurrentDesktop := DesktopNext
-        DllCall(GoToDesktopNumberProc, "Int", CurrentDesktop)
+        GoToDesktopAndWait(CurrentDesktop)
         DesktopNext := Mod(DesktopNext + 1, DesktopCount)
         if (CyclePhase = "detect") {
             Left := DetectSeconds * 1000 - (A_TickCount - CycleStart)
