@@ -838,6 +838,12 @@ MainCheckStep() {
     ; 连续非暗色计时：亮色确认了就开始计时，暗色/未知/没找到就清零。
     ; 主轮询里连续非暗色超过 20 分钟，就点一下状态图标（怕是误判，
     ; 实际是暗色却认成了亮色）；点完重新计时。
+    ; 注意：NonDarkSince 一开始是空的，主轮询第一个到的桌面不一定是桌面 1
+    ; （检测阶段结束在哪，下一个就是哪），直接按下标写会下标越界报错，
+    ; 所以先把它补到够长。
+    while (NonDarkSince.Length < Idx) {
+        NonDarkSince.Push(0)
+    }
     if (BrightFound) {
         Since := (Idx <= NonDarkSince.Length) ? NonDarkSince[Idx] : 0
         if (Since = 0) {
