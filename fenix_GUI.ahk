@@ -108,8 +108,9 @@ SwitchClickY := 57
 GameTitle := "Atlantica Online Fenix"  ; 游戏窗口标题（截图里看到的；三个桌面都一样，但每个桌面只有一个，用 DLL 挑当前桌面上的那一个）
 
 ; ===== 轮询循环（功能 1）的阶段和计时 =====
-; 没有检测阶段了：每次到一个桌面，先激活游戏窗口，再在游戏窗口
-; 里面全窗口找图标（放映机图标和状态图标），找到就按规则处理。
+; 没有检测阶段了：每次到一个桌面，先激活游戏窗口，再找图标
+; （放映机图标和状态图标），找到就按规则处理。位置都是固定
+; 的：第一次全窗口找并记下位置，以后只在记录位置附近找。
 ; DesktopPhase 是每一步的小阶段：switch 切桌面、activate 激活游戏窗口
 ; （先按标题找，找不到再用图标位置）、click212 点切换后坐标、click 原地点击、
 ; check 检查放映机图标和状态图标（决定按 G 还是只按 X、点不点
@@ -130,6 +131,12 @@ GameWinX := 0
 GameWinY := 0
 GameWinW := 0
 GameWinH := 0
+; 各桌面记下的图标中心坐标（下标从 1 开始，对应桌面 1、2、3……）
+; 0 表示该桌面还没找到这个点（第一次全窗口找，找到就记下来）。
+CalStatusX := []        ; 状态图标（双剑）中心
+CalStatusY := []
+CalProjX := []          ; 放映机图标中心
+CalProjY := []
 NonDarkSince := []     ; 每个桌面连续非暗色（亮色）是从什么时候开始的（A_TickCount），0 表示没在连续
 NonDarkClickMs := 1200000 ; 连续非暗色超过 20 分钟，就点一下状态图标（怕是误判）
 CheckProjFound := false ; 这轮检查：放映机图标在不在（check 步记下，pressX 步用）
@@ -289,6 +296,7 @@ ToggleDesktop(*) {
     global btnDesktop, txtDesktopStatus
     global CfgDesktopWait, CfgDesktopKey, CfgSwitchX, CfgSwitchY
     global CyclePhase, CycleCount, DesktopNext, CurrentDesktop, DesktopCount
+    global CalStatusX, CalStatusY, CalProjX, CalProjY
     if (DesktopRunning) {
         StopDesktopPolling()
         ToolTip()
@@ -305,6 +313,17 @@ ToggleDesktop(*) {
     SwitchClickY := Integer(CfgSwitchY)
     DesktopRunning := true
     CycleCount++
+    ; 各桌面图标位置清零（0 表示还没找到，第一次全窗口找，找到就记下来）。
+    CalStatusX := []
+    CalStatusY := []
+    CalProjX := []
+    CalProjY := []
+    Loop DesktopCount {
+        CalStatusX.Push(0)
+        CalStatusY.Push(0)
+        CalProjX.Push(0)
+        CalProjY.Push(0)
+    }
     DesktopNext := 0
     CurrentDesktop := 0
     StartCyclePhase("main")
@@ -384,30 +403,45 @@ FindPattern(Text, X1, Y1, X2, Y2, &CX, &CY, E1 := "", E0 := "") {
     return false
 }
 
-; 在刚激活的游戏窗口里面找一个图标（全窗口找，不用记位置）：
-; 窗口挪位置、图标挪位置都能找到；窗口外面不找，屏幕别处的
-; 误匹配进不来。窗口位置没记下来时才全屏找。找到返回 true，
-; OutX/OutY 是图标中心。
-FindIcon(Pattern, &OutX, &OutY, E1 := "", E0 := "") {
+; 在游戏窗口里面找一个图标：位置都是固定的，第一次全窗口找，
+; 以后只在记录位置附近找（中心 ±60/±50），这样又快、屏幕别处
+; 的误匹配也进不来；附近没找到，图标可能挪位置了（窗口移动、
+; 弹窗挡住），再全窗口找一次重新定位；全窗口也找不到才是不在。
+; 没记下位置时直接全窗口找。找到返回 true，OutX/OutY 是图标中心。
+FindIcon(Pattern, RecX, RecY, &OutX, &OutY, E1 := "", E0 := "") {
     global GameWinX, GameWinY, GameWinW, GameWinH
     OutX := 0
     OutY := 0
-    if (GameWinW > 0 && GameWinH > 0) {
-        return FindPattern(Pattern, GameWinX, GameWinY, GameWinX + GameWinW, GameWinY + GameWinH, &OutX, &OutY, E1, E0)
+    ; 全窗口的范围：激活的游戏窗口里面；窗口位置没记下来时全屏找。
+    WX1 := (GameWinW > 0 && GameWinH > 0) ? GameWinX : 0
+    WY1 := (GameWinW > 0 && GameWinH > 0) ? GameWinY : 0
+    WX2 := (GameWinW > 0 && GameWinH > 0) ? GameWinX + GameWinW : A_ScreenWidth
+    WY2 := (GameWinW > 0 && GameWinH > 0) ? GameWinY + GameWinH : A_ScreenHeight
+    if (RecX != 0) {
+        if (FindPattern(Pattern, RecX - 60, RecY - 50, RecX + 60, RecY + 50, &OutX, &OutY, E1, E0)) {
+            return true
+        }
+        return FindPattern(Pattern, WX1, WY1, WX2, WY2, &OutX, &OutY, E1, E0)
     }
-    return FindPattern(Pattern, 0, 0, A_ScreenWidth, A_ScreenHeight, &OutX, &OutY, E1, E0)
+    return FindPattern(Pattern, WX1, WY1, WX2, WY2, &OutX, &OutY, E1, E0)
 }
 
 ; 找放映机图标（Idx 是桌面序号，从 1 开始）。
 FindProjector(Idx, &OutX, &OutY) {
-    global ProjectorText, ProjectorTextOld, ProjErr1, ProjErr0
-    Found := FindIcon(ProjectorText, &OutX, &OutY, ProjErr1, ProjErr0)
+    global ProjectorText, ProjectorTextOld, ProjErr1, ProjErr0, CalProjX, CalProjY
+    RX := (Idx >= 1 && Idx <= CalProjX.Length) ? CalProjX[Idx] : 0
+    RY := (Idx >= 1 && Idx <= CalProjY.Length) ? CalProjY[Idx] : 0
+    Found := FindIcon(ProjectorText, RX, RY, &OutX, &OutY, ProjErr1, ProjErr0)
     if (Found) {
+        CalProjX[Idx] := OutX
+        CalProjY[Idx] := OutY
         LogFind("D" . Idx . " projector FOUND (" . OutX . "," . OutY . ")")
         return true
     }
-    Found := FindIcon(ProjectorTextOld, &OutX, &OutY, ProjErr1, ProjErr0)
+    Found := FindIcon(ProjectorTextOld, RX, RY, &OutX, &OutY, ProjErr1, ProjErr0)
     if (Found) {
+        CalProjX[Idx] := OutX
+        CalProjY[Idx] := OutY
         LogFind("D" . Idx . " projector (old size) FOUND (" . OutX . "," . OutY . ")")
     }
     return Found
@@ -464,8 +498,10 @@ ClickStatusIcon(IconX, IconY) {
 ; （亮版底色浅蓝，暗版底色深紫）。图案认错的时候（比如暗版图标
 ; 顶上有亮边），亮度会把它拦下来，当没找到。
 FindBright(Idx, &OutX, &OutY) {
-    global BrightText
-    Found := FindIcon(BrightText, &OutX, &OutY)
+    global BrightText, CalStatusX, CalStatusY
+    RX := (Idx >= 1 && Idx <= CalStatusX.Length) ? CalStatusX[Idx] : 0
+    RY := (Idx >= 1 && Idx <= CalStatusY.Length) ? CalStatusY[Idx] : 0
+    Found := FindIcon(BrightText, RX, RY, &OutX, &OutY)
     if (!Found) {
         return false
     }
@@ -473,6 +509,8 @@ FindBright(Idx, &OutX, &OutY) {
         LogFind("D" . Idx . " icon bright pattern found at (" . OutX . "," . OutY . ") but brightness says dark, treat as not found")
         return false
     }
+    CalStatusX[Idx] := OutX
+    CalStatusY[Idx] := OutY
     LogFind("D" . Idx . " icon bright FOUND (" . OutX . "," . OutY . ")")
     return true
 }
@@ -481,8 +519,10 @@ FindBright(Idx, &OutX, &OutY) {
 ; 再确认一次是真暗色（暗版底色深紫，亮版底色浅蓝）。图案认错
 ; 的时候，亮度会把它拦下来，当非暗色（亮色）。
 FindDark(Idx, &OutX, &OutY) {
-    global DarkText
-    Found := FindIcon(DarkText, &OutX, &OutY)
+    global DarkText, CalStatusX, CalStatusY
+    RX := (Idx >= 1 && Idx <= CalStatusX.Length) ? CalStatusX[Idx] : 0
+    RY := (Idx >= 1 && Idx <= CalStatusY.Length) ? CalStatusY[Idx] : 0
+    Found := FindIcon(DarkText, RX, RY, &OutX, &OutY)
     if (!Found) {
         return false
     }
@@ -490,6 +530,8 @@ FindDark(Idx, &OutX, &OutY) {
         LogFind("D" . Idx . " icon dark pattern found at (" . OutX . "," . OutY . ") but brightness says bright, treat as non-dark")
         return false
     }
+    CalStatusX[Idx] := OutX
+    CalStatusY[Idx] := OutY
     LogFind("D" . Idx . " icon dark FOUND (" . OutX . "," . OutY . ")")
     return true
 }
@@ -499,9 +541,13 @@ FindDark(Idx, &OutX, &OutY) {
 ; 暗版图案都认不到对方（交叉验证过），所以图案本身就够了，不用再验亮度。
 ; 找到返回 true，OutX/OutY 是图标中心。未知图标不点，只按 G 和 X。
 FindUnknown(Idx, &OutX, &OutY) {
-    global UnknownText
-    Found := FindIcon(UnknownText, &OutX, &OutY)
+    global UnknownText, CalStatusX, CalStatusY
+    RX := (Idx >= 1 && Idx <= CalStatusX.Length) ? CalStatusX[Idx] : 0
+    RY := (Idx >= 1 && Idx <= CalStatusY.Length) ? CalStatusY[Idx] : 0
+    Found := FindIcon(UnknownText, RX, RY, &OutX, &OutY)
     if (Found) {
+        CalStatusX[Idx] := OutX
+        CalStatusY[Idx] := OutY
         LogFind("D" . Idx . " icon unknown FOUND (" . OutX . "," . OutY . ")")
     }
     return Found
