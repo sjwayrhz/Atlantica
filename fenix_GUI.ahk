@@ -180,15 +180,15 @@ ProjectorTextOld := "|<projector>*68$45.Tzzzzzzv0000003Hzzzzzz+TzzzzzxLzwLzzzezz
 ClickMode := ""         ; "" = 未运行，"both" = 两种同时，"right" = 仅右键（抽奖），"two" = 仅两点点击（合成）
 TwoRunning := false
 TwoPhase := 0
-WaitAfterFirst := 1000
-WaitAfterSecond := 2000
+WaitAfterFirst := 1000    ; 点 1 后等，固定值
+WaitAfterSecond := 2000   ; 点 2 后等，固定值
 
 RightRunning := false
-RightClickInterval := 3500
+RightClickInterval := 3500 ; 右键间隔，固定值
 
 ; ===== 参数 =====
-; 轮询的参数直接写死在代码里，不用 ini 文件。
-; 开箱子的参数存在脚本同目录的 fenix_Config.ini 里，
+; 轮询的参数和开箱子的三个等待时间直接写死在代码里，不用 ini 文件。
+; 开箱子的三个坐标存在脚本同目录的 fenix_Config.ini 里，
 ; 点“保存配置”会更新它，下次打开自动恢复。
 ConfigFile := A_ScriptDir "\fenix_Config.ini"
 CfgDesktopWait := "1000"
@@ -199,11 +199,8 @@ CfgPoint1X := IniRead(ConfigFile, "Click", "Point1X", "700")
 CfgPoint1Y := IniRead(ConfigFile, "Click", "Point1Y", "450")
 CfgPoint2X := IniRead(ConfigFile, "Click", "Point2X", "822")
 CfgPoint2Y := IniRead(ConfigFile, "Click", "Point2Y", "450")
-CfgWaitAfterFirst := IniRead(ConfigFile, "Click", "WaitAfterFirst", "1000")
-CfgWaitAfterSecond := IniRead(ConfigFile, "Click", "WaitAfterSecond", "2000")
 CfgRightX := IniRead(ConfigFile, "Click", "RightX", "980")
 CfgRightY := IniRead(ConfigFile, "Click", "RightY", "593")
-CfgRightInterval := IniRead(ConfigFile, "Click", "RightInterval", "3500")
 
 ; 开箱子运行时用的坐标，先按配置文件里的值来；
 ; 点“取点”按钮改了之后就用新取到的值。
@@ -238,37 +235,31 @@ btnCapP1.OnEvent("Click", (*) => CapturePos(1))
 btnCapP2 := MyGui.Add("Button", "x254 y122 w115 h30", "开始精炼")
 btnCapP2.OnEvent("Click", (*) => CapturePos(2))
 txtClickPos := MyGui.Add("Text", "x10 y158 w360 h28", "")
-MyGui.Add("Text", "x10 y192 w80", "点 1 后等(ms):")
-edtWait1 := MyGui.Add("Edit", "x95 y189 w60", CfgWaitAfterFirst)
-MyGui.Add("Text", "x165 y192 w80", "点 2 后等(ms):")
-edtWait2 := MyGui.Add("Edit", "x250 y189 w60", CfgWaitAfterSecond)
-MyGui.Add("Text", "x10 y222 w80", "右键间隔(ms):")
-edtRightInterval := MyGui.Add("Edit", "x95 y219 w60", CfgRightInterval)
-btnBoth := MyGui.Add("Button", "x10 y252 w150 h30", "两种点击同时操作")
+btnBoth := MyGui.Add("Button", "x10 y192 w150 h30", "两种点击同时操作")
 btnBoth.OnEvent("Click", ToggleBoth)
-btnRightOnly := MyGui.Add("Button", "x165 y252 w100 h30", "抽奖")
+btnRightOnly := MyGui.Add("Button", "x165 y192 w100 h30", "抽奖")
 btnRightOnly.OnEvent("Click", ToggleRightOnly)
-btnSynth := MyGui.Add("Button", "x270 y252 w100 h30", "合成")
+btnSynth := MyGui.Add("Button", "x270 y192 w100 h30", "合成")
 btnSynth.OnEvent("Click", ToggleSynth)
-txtClickStatus := MyGui.Add("Text", "x10 y287 w360", "状态：未运行")
-MyGui.Add("Text", "x10 y307 w360 h2 +0x1000")
+txtClickStatus := MyGui.Add("Text", "x10 y227 w360", "状态：未运行")
+MyGui.Add("Text", "x10 y247 w360 h2 +0x1000")
 
 ; ---- 3. 快捷切换桌面 ----
-MyGui.Add("Text", "x10 y317 w360", "3. 快捷切换桌面")
-btnQuickStart := MyGui.Add("Button", "x10 y342 w175 h30", "开始：快捷切换")
+MyGui.Add("Text", "x10 y257 w360", "3. 快捷切换桌面")
+btnQuickStart := MyGui.Add("Button", "x10 y282 w175 h30", "开始：快捷切换")
 btnQuickStart.OnEvent("Click", StartQuickSwitch)
-btnQuickStop := MyGui.Add("Button", "x195 y342 w175 h30", "停止")
+btnQuickStop := MyGui.Add("Button", "x195 y282 w175 h30", "停止")
 btnQuickStop.OnEvent("Click", StopQuickSwitch)
 btnQuickStop.Enabled := false
-txtQuickStatus := MyGui.Add("Text", "x10 y377 w360", "状态：未录制")
-MyGui.Add("Text", "x10 y397 w360 h2 +0x1000")
+txtQuickStatus := MyGui.Add("Text", "x10 y317 w360", "状态：未录制")
+MyGui.Add("Text", "x10 y337 w360 h2 +0x1000")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y407 w115 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y347 w115 h30", "全部停止")
 btnStopAll.OnEvent("Click", StopAll)
-btnSaveConfig := MyGui.Add("Button", "x132 y407 w115 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x132 y347 w115 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", SaveConfig)
-btnExit := MyGui.Add("Button", "x254 y407 w115 h30", "退出")
+btnExit := MyGui.Add("Button", "x254 y347 w115 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 MyGui.OnEvent("Close", (*) => ExitApp())
 
@@ -947,25 +938,14 @@ StopClickLoops() {
 ToggleBoth(*) {
     global ClickMode, TwoRunning, TwoPhase, Point1X, Point1Y, Point2X, Point2Y
     global WaitAfterFirst, WaitAfterSecond, RightRunning, RightX, RightY, RightClickInterval
-    global edtWait1, edtWait2, edtRightInterval
     if (ClickMode = "both") {
         StopClickLoops()
         ToolTip()
         return
     }
-    ; 坐标是取点按钮记录好的，这里只校验等待时间，校验不过就保持当前模式不动
-    for ctrl in [edtWait1, edtWait2, edtRightInterval] {
-        if (!IsNumber(ctrl.Value)) {
-            MsgBox("等待时间请都填数字。")
-            return
-        }
-    }
     StopClickLoops()
     StopDesktopPolling()
     StopQuickSwitch()
-    WaitAfterFirst := Integer(edtWait1.Value)
-    WaitAfterSecond := Integer(edtWait2.Value)
-    RightClickInterval := Integer(edtRightInterval.Value)
     TwoRunning := true
     TwoPhase := 0
     RightRunning := true
@@ -978,20 +958,14 @@ ToggleBoth(*) {
 
 ToggleRightOnly(*) {
     global ClickMode, RightRunning, RightX, RightY, RightClickInterval
-    global edtRightInterval
     if (ClickMode = "right") {
         StopClickLoops()
         ToolTip()
         return
     }
-    if (!IsNumber(edtRightInterval.Value)) {
-        MsgBox("右键间隔请填数字。")
-        return
-    }
     StopClickLoops()
     StopDesktopPolling()
     StopQuickSwitch()
-    RightClickInterval := Integer(edtRightInterval.Value)
     RightRunning := true
     ClickMode := "right"
     UpdateClickButtons()
@@ -1001,23 +975,14 @@ ToggleRightOnly(*) {
 
 ToggleSynth(*) {
     global ClickMode, TwoRunning, TwoPhase, Point1X, Point1Y, Point2X, Point2Y, WaitAfterFirst, WaitAfterSecond
-    global edtWait1, edtWait2
     if (ClickMode = "two") {
         StopClickLoops()
         ToolTip()
         return
     }
-    for ctrl in [edtWait1, edtWait2] {
-        if (!IsNumber(ctrl.Value)) {
-            MsgBox("等待时间请都填数字。")
-            return
-        }
-    }
     StopClickLoops()
     StopDesktopPolling()
     StopQuickSwitch()
-    WaitAfterFirst := Integer(edtWait1.Value)
-    WaitAfterSecond := Integer(edtWait2.Value)
     TwoRunning := true
     TwoPhase := 0
     ClickMode := "two"
@@ -1064,29 +1029,19 @@ StopAll(*) {
 }
 
 ; ===== 保存配置 =====
-; 把开箱子当前用的坐标和等待时间存到脚本同目录的 fenix_Config.ini，
-; 下次打开自动恢复。轮询的参数是写死在代码里的，不用 ini，不写。
+; 把开箱子当前用的三个坐标存到脚本同目录的 fenix_Config.ini，
+; 下次打开自动恢复。等待时间是写死在代码里的固定值，不用 ini，不写。
 ; 正在运行时点保存也不会停掉正在跑的功能。
 SaveConfig(*) {
     global ConfigFile
     global Point1X, Point1Y, Point2X, Point2Y, RightX, RightY
-    global edtWait1, edtWait2, edtRightInterval
-    for ctrl in [edtWait1, edtWait2, edtRightInterval] {
-        if (!IsNumber(ctrl.Value)) {
-            MsgBox("有等待时间不是数字，配置没有保存，请先改成数字再点保存配置。")
-            return
-        }
-    }
     IniWrite(Point1X, ConfigFile, "Click", "Point1X")
     IniWrite(Point1Y, ConfigFile, "Click", "Point1Y")
     IniWrite(Point2X, ConfigFile, "Click", "Point2X")
     IniWrite(Point2Y, ConfigFile, "Click", "Point2Y")
-    IniWrite(edtWait1.Value, ConfigFile, "Click", "WaitAfterFirst")
-    IniWrite(edtWait2.Value, ConfigFile, "Click", "WaitAfterSecond")
     IniWrite(RightX, ConfigFile, "Click", "RightX")
     IniWrite(RightY, ConfigFile, "Click", "RightY")
-    IniWrite(edtRightInterval.Value, ConfigFile, "Click", "RightInterval")
-    MsgBox("配置已保存到：`n" ConfigFile "`n下次打开脚本会自动恢复这些坐标和间隔。")
+    MsgBox("配置已保存到：`n" ConfigFile "`n下次打开脚本会自动恢复这些坐标。")
 }
 
 ; F12 用的开关：未运行时启动两种点击同时模式，
