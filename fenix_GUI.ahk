@@ -121,7 +121,7 @@ CycleCount := 0
 CurrentDesktop := 0
 DetectSeconds := 15     ; 开头检测多少秒
 ManualPaused := false   ; F8 手动暂停的开关
-QuickSwitchEnabled := false ; 快捷切换桌面（键盘 1/2/3）的开关，默认关
+QuickSwitchEnabled := true  ; 快捷切换桌面（键盘 1/2/3）的开关，默认开
 PauseStartTick := 0     ; 本次暂停开始的时间，0 表示没在暂停
 ; 检测时记下的图标中心坐标（下标从 1 开始，对应桌面 1、2、3……）
 ; 0 表示该桌面还没找到这个点。
@@ -244,7 +244,7 @@ btnQuickStart := MyGui.Add("Button", "x10 y300 w175 h30", "开始：快捷切换
 btnQuickStart.OnEvent("Click", StartQuickSwitch)
 btnQuickStop := MyGui.Add("Button", "x195 y300 w175 h30", "停止")
 btnQuickStop.OnEvent("Click", StopQuickSwitch)
-btnQuickStop.Enabled := false
+btnQuickStart.Enabled := false
 MyGui.Add("Text", "x10 y335 w360 h2 +0x1000")
 
 ; ---- 底部 ----
