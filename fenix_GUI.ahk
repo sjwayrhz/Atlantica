@@ -209,6 +209,17 @@ CfgRightX := IniRead(ConfigFile, "Click", "RightX", "980")
 CfgRightY := IniRead(ConfigFile, "Click", "RightY", "593")
 CfgRightInterval := IniRead(ConfigFile, "Click", "RightInterval", "3500")
 
+; ===== 整点截图发 Telegram（轮询开着的时候）=====
+; 每个整点，轮询走到换桌面这个安全点时，把每个桌面各截一张图发到 Telegram。
+; BotToken/ChatID 存在 fenix_Config.ini 的 [Telegram] 里，自己填，不填就不发。
+; 网络不通时，本次运行不再试（TelegramBlocked），重启脚本才再试。
+CfgTgToken := IniRead(ConfigFile, "Telegram", "BotToken", "")
+CfgTgChatID := IniRead(ConfigFile, "Telegram", "ChatID", "")
+TelegramBlocked := false
+HourlyPending := false
+LastShotHour := A_Hour
+ShotPs1File := ""
+
 ; ===== 图形界面 =====
 MyGui := Gui(, "fenix 功能菜单")
 MyGui.SetFont("s10")
@@ -278,6 +289,9 @@ if (DesktopCount < 1) {
 }
 
 MyGui.Show("w380 h405")
+
+; 整点截图的检查：每 10 秒看一次是不是进了新的一小时。
+SetTimer(CheckHourlyShot, 10000)
 
 ; ===== 功能 1：桌面轮询 =====
 ; F11 或点按钮启动：一直轮询，直到再按 F11 或 F9 停掉。
@@ -695,6 +709,7 @@ StepDesktop() {
     global DesktopCount, DesktopKey, KeyGapMs, GoToDesktopNumberProc, DesktopWaitMs, SwitchClickX, SwitchClickY
     global GameWinX, GameWinY, GameWinW, GameWinH
     global txtDesktopStatus
+    global HourlyPending, LastShotHour
     if (!DesktopRunning) {
         return
     }
@@ -707,6 +722,14 @@ StepDesktop() {
         return
     }
     if (DesktopPhase = "switch") {
+        ; 整点截图：轮询走到换桌面这个安全点时，先把到点的截图发图做了再继续。
+        ; 还在同一个小时内才做，跨小时了（比如暂停后才恢复）就跳过，不补发。
+        if (HourlyPending) {
+            HourlyPending := false
+            if (A_Hour = LastShotHour) {
+                DoHourlyShots()
+            }
+        }
         CurrentDesktop := DesktopNext
         GoToDesktopAndWait(CurrentDesktop)
         DesktopNext := Mod(DesktopNext + 1, DesktopCount)
@@ -858,6 +881,122 @@ PressXStep() {
     ToolTip("Desktop " Idx ": projector yes, X pressed")
     DesktopPhase := "switch"
     SetTimer(StepDesktop, DesktopWaitMs)
+}
+
+; ===== 整点截图发 Telegram（轮询开着的时候）=====
+; 每 10 秒看一次是不是进了新的一小时：是就记下来，等轮询走到
+; switch 步这个安全点再截图发图。只设个标记，不直接切桌面，
+; 免得打断正在走的轮询步骤。
+; 轮询没跑、暂停了、没配 Telegram、网络已标坏，这一小时就跳过。
+CheckHourlyShot() {
+    global LastShotHour, HourlyPending, DesktopRunning
+    global CfgTgToken, CfgTgChatID, TelegramBlocked
+    if (A_Hour = LastShotHour) {
+        return
+    }
+    LastShotHour := A_Hour
+    if (CfgTgToken = "" || CfgTgChatID = "" || TelegramBlocked) {
+        return
+    }
+    if (!DesktopRunning || CheckPaused()) {
+        return
+    }
+    HourlyPending := true
+}
+
+; 整点截图发 Telegram：在 switch 步的安全点调用。
+; 逐个桌面切过去截一张图，截完马上发；发图失败（网络不通、token 不对）
+; 就记下来，本次运行不再试（TelegramBlocked），重启脚本才再试。
+; 截图是当前主屏的 PNG，发完就删；发失败的留着，临时文件夹里能找到。
+DoHourlyShots() {
+    global DesktopCount, TelegramBlocked, CfgTgToken, CfgTgChatID, ShotPs1File
+    if (CfgTgToken = "" || CfgTgChatID = "") {
+        return
+    }
+    if (!EnsureShotPs1()) {
+        LogFind("hourly shots: cannot write ShotAndSend.ps1")
+        return
+    }
+    ToolTip("Hourly: sending desktop screenshots to Telegram...")
+    TimeStr := FormatTime(, "yyyyMMdd_HHmm")
+    CapTime := FormatTime(, "yyyy-MM-dd HH:mm")
+    Loop DesktopCount {
+        D := A_Index
+        GoToDesktopAndWait(D - 1)
+        Sleep(500)
+        File := A_Temp "\fenix_shots\D" D "_" TimeStr ".png"
+        Cmd := 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' ShotPs1File '" -Token "' CfgTgToken '" -ChatID "' CfgTgChatID '" -File "' File '" -Caption "桌面 ' D ' ' CapTime '"'
+        try {
+            ExitCode := RunWait(Cmd, , "Hide")
+        } catch {
+            ExitCode := -1
+        }
+        if (ExitCode = 0) {
+            LogFind("hourly shots: desktop " D " sent")
+            try {
+                FileDelete(File)
+            } catch {
+            }
+        } else if (ExitCode = 2) {
+            ; 2 是截图本身失败（不是网络问题），记一笔，继续下一个桌面。
+            LogFind("hourly shots: screenshot failed on desktop " D)
+        } else {
+            TelegramBlocked := true
+            LogFind("hourly shots: Telegram send failed on desktop " D ", disabled for this run")
+            ToolTip()
+            return
+        }
+    }
+    ToolTip()
+    LogFind("hourly shots: all " DesktopCount " desktop screenshots sent")
+}
+
+; 整点截图发 Telegram 用的 PowerShell 脚本：截当前主屏一张 PNG，马上发到 Telegram。
+; 第一次用时才生成到临时文件夹，不放进仓库（仓库还是那 3 个必需文件）。
+; 这个脚本的返回值：0 发图成功，1 发图失败（网络不通、token 不对），2 截图失败。
+; 用 curl.exe 发图（Windows 自带），不用 Invoke-RestMethod -Form（系统自带的
+; PowerShell 5.1 没有 -Form 参数）。
+EnsureShotPs1() {
+    global ShotPs1File
+    if (ShotPs1File != "" && FileExist(ShotPs1File)) {
+        return true
+    }
+    DirCreate(A_Temp "\fenix_shots")
+    ShotPs1File := A_Temp "\fenix_shots\ShotAndSend.ps1"
+    Code := "
+(
+param($Token, $ChatID, $File, $Caption)
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+try {
+    $b = New-Object System.Drawing.Bitmap([System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width, [System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height)
+    $g = [System.Drawing.Graphics]::FromImage($b)
+    $g.CopyFromScreen(0, 0, 0, 0, $b.Size)
+    $b.Save($File, [System.Drawing.Imaging.ImageFormat]::Png)
+    $g.Dispose()
+    $b.Dispose()
+} catch {
+    exit 2
+}
+try {
+    $url = "https://api.telegram.org/bot$Token/sendPhoto"
+    $cargs = @('-s', '--max-time', '20', '-F', "chat_id=$ChatID", '-F', "photo=@$File", '-F', "caption=$Caption", $url)
+    $out = & curl.exe @cargs
+    if ($LASTEXITCODE -eq 0 -and ($out -join '') -match '"ok":true') { exit 0 } else { exit 1 }
+} catch {
+    exit 1
+}
+)"
+    try {
+        FileDelete(ShotPs1File)
+    } catch {
+    }
+    try {
+        FileAppend(Code, ShotPs1File, "UTF-8")
+    } catch {
+        return false
+    }
+    return true
 }
 
 
