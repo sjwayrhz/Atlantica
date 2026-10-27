@@ -153,6 +153,8 @@ CheckStatusNotFound := false ; 这轮检查：状态图标是不是都没找到�
 ; 就调高，认错别的图标就调低。
 FindErr1 := 0.1
 FindErr0 := 0.1
+ProjErr1 := 0.2
+ProjErr0 := 0.2
 BrightText := "|<Bright>*120$42.U000001000000000000000000000003zk00003zk10401zU20430z0k041UV1U040kS30040MA6E040A0A004060M004030k00001VU00400H0004000000400M000400Q000000S000000n000001VU000030k0000200000040A000000400000040000E06000000000000000000000000400080000000000000000000001U"
 DarkText := "|<Dark>*120$42.U000001DzzzzzxTvzzzryTszzz7yTsTzy7yTwDzwDyTw7zsDyTz7zszyTzXVlzyTzlSXzyTzsy7zyTzwyDzyTzyETzyTzzAzzyTzzgzzyTzzGzzyTzzVzzyTzzvzzzTzzzzzzTzzzzzyTjzzzxyTjzzzxzTrvzzvzTzu1VzzTzqzSzzTz6zQzzTz63QzzTzrxSzzzzjxSzzzzjxSzzzzixSzzzzj1VzzzzTzzzzzTTzzyzzjzzzxzU"
 UnknownText := "|<Unknown>*82$46.zzzzzzzvzzzzzzzjzzzzzzzk000000yTzzzzztdzTzzyzqjwzzznzSzszzwTxfzVzzVzqjz3zwDzOzzDznzxfzwTyDzqjzszlzzOzznzDzxfzzbtzzqjzzDDzzOzzytzzxvzzxjzzrjzztzzzSzzzrzzxfzzzzzzqjzzzzzzOzzzzzzxfzzzzzzqjrzzzyzOzzzzzzxfzzzzzzqjzzzzzzOzyTztzxfztzzbzqjzzzzzzOzzzzzzxfzzzzzzqjzzzzzzOzzzPzzxfzzzzzzyjjzzzzTTzzzzzzzi000000SzzzzzzzvzzzzLzzz"
@@ -376,8 +378,14 @@ LogFind(Msg) {
 ; 图案中心（FindText 直接返回图案中心，点图标用的就是这个
 ; 坐标）；没找到返回 false。坐标会夹到屏幕内，FindText 报错
 ; （如图案写错）时当没找到处理。
-FindPattern(Text, X1, Y1, X2, Y2, &CX, &CY) {
+FindPattern(Text, X1, Y1, X2, Y2, &CX, &CY, E1 := "", E0 := "") {
     global FindErr1, FindErr0
+    if (E1 = "") {
+        E1 := FindErr1
+    }
+    if (E0 = "") {
+        E0 := FindErr0
+    }
     CX := 0
     CY := 0
     if (X1 < 0) {
@@ -395,7 +403,7 @@ FindPattern(Text, X1, Y1, X2, Y2, &CX, &CY) {
     FX := 0
     FY := 0
     try {
-        if (FindText(&FX, &FY, X1, Y1, X2, Y2, FindErr1, FindErr0, Text).Length) {
+        if (FindText(&FX, &FY, X1, Y1, X2, Y2, E1, E0, Text).Length) {
             CX := FX
             CY := FY
             return true
@@ -408,26 +416,26 @@ FindPattern(Text, X1, Y1, X2, Y2, &CX, &CY) {
 ; 在当前桌面找一个图标：有记录时只在记录位置附近找（中心
 ; ±60/±50），这样屏幕别处的误匹配就进不来；没记录时才全屏
 ; 找。找到返回 true，OutX/OutY 是图标中心。
-FindIcon(Pattern, RecX, RecY, &OutX, &OutY) {
+FindIcon(Pattern, RecX, RecY, &OutX, &OutY, E1 := "", E0 := "") {
     OutX := 0
     OutY := 0
     if (RecX != 0) {
-        return FindPattern(Pattern, RecX - 60, RecY - 50, RecX + 60, RecY + 50, &OutX, &OutY)
+        return FindPattern(Pattern, RecX - 60, RecY - 50, RecX + 60, RecY + 50, &OutX, &OutY, E1, E0)
     }
-    return FindPattern(Pattern, 0, 0, A_ScreenWidth, A_ScreenHeight, &OutX, &OutY)
+    return FindPattern(Pattern, 0, 0, A_ScreenWidth, A_ScreenHeight, &OutX, &OutY, E1, E0)
 }
 
 ; 找放映机图标（Idx 是桌面序号，从 1 开始）。
 FindProjector(Idx, &OutX, &OutY) {
-    global ProjectorText, ProjectorTextOld, CalProjX, CalProjY
+    global ProjectorText, ProjectorTextOld, ProjErr1, ProjErr0, CalProjX, CalProjY
     RX := (Idx >= 1 && Idx <= CalProjX.Length) ? CalProjX[Idx] : 0
     RY := (Idx >= 1 && Idx <= CalProjY.Length) ? CalProjY[Idx] : 0
-    Found := FindIcon(ProjectorText, RX, RY, &OutX, &OutY)
+    Found := FindIcon(ProjectorText, RX, RY, &OutX, &OutY, ProjErr1, ProjErr0)
     if (Found) {
         LogFind("D" . Idx . " projector FOUND (" . OutX . "," . OutY . ")")
         return true
     }
-    Found := FindIcon(ProjectorTextOld, RX, RY, &OutX, &OutY)
+    Found := FindIcon(ProjectorTextOld, RX, RY, &OutX, &OutY, ProjErr1, ProjErr0)
     if (Found) {
         LogFind("D" . Idx . " projector (old size) FOUND (" . OutX . "," . OutY . ")")
     }
