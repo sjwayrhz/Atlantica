@@ -449,14 +449,19 @@ FindPattern(Text, X1, Y1, X2, Y2, &CX, &CY, E1 := "", E0 := "") {
     return false
 }
 
-; 在当前桌面找一个图标：有记录时只在记录位置附近找（中心
-; ±60/±50），这样屏幕别处的误匹配就进不来；没记录时才全屏
-; 找。找到返回 true，OutX/OutY 是图标中心。
+; 在当前桌面找一个图标：有记录时先在记录位置附近找（中心
+; ±60/±50），这样屏幕别处的误匹配就进不来；附近没找到，图标
+; 可能挪位置了（窗口移动、弹窗挡住），再全屏找一次；全屏也找
+; 不到才是真的没找到。没记录时直接全屏找。找到返回 true，
+; OutX/OutY 是图标中心。
 FindIcon(Pattern, RecX, RecY, &OutX, &OutY, E1 := "", E0 := "") {
     OutX := 0
     OutY := 0
     if (RecX != 0) {
-        return FindPattern(Pattern, RecX - 60, RecY - 50, RecX + 60, RecY + 50, &OutX, &OutY, E1, E0)
+        if (FindPattern(Pattern, RecX - 60, RecY - 50, RecX + 60, RecY + 50, &OutX, &OutY, E1, E0)) {
+            return true
+        }
+        return FindPattern(Pattern, 0, 0, A_ScreenWidth, A_ScreenHeight, &OutX, &OutY, E1, E0)
     }
     return FindPattern(Pattern, 0, 0, A_ScreenWidth, A_ScreenHeight, &OutX, &OutY, E1, E0)
 }
@@ -511,6 +516,8 @@ IconBright(CX, CY) {
 ; 点状态图标：点一下，然后模拟人工操作，在图标内部小范围移动鼠标 0.5 秒，
 ; 再把鼠标移到屏幕中上方，免得鼠标挡住图标、影响下次识别。
 ClickStatusIcon(IconX, IconY) {
+    global CurrentDesktop
+    LogFind("D" (CurrentDesktop + 1) " CLICK status icon at (" IconX "," IconY ")")
     Click(IconX, IconY)
     Loop 5 {
         MouseMove(IconX + Random(-18, 18), IconY + Random(-14, 14), 0)
@@ -769,10 +776,13 @@ StepDesktop() {
             SetTimer(StepDesktop, 100)   ; 激活失败，稍停一下再点
         }
     } else if (DesktopPhase = "click212") {
+        LogFind("D" (CurrentDesktop + 1) " CLICK focus (212,57) after activation failed")
         Click(SwitchClickX, SwitchClickY)
         DesktopPhase := "click"
         SetTimer(StepDesktop, 500)   ; 点完再停 0.5 秒
     } else if (DesktopPhase = "click") {
+        MouseGetPos(&CX, &CY)
+        LogFind("D" (CurrentDesktop + 1) " CLICK focus at current pos (" CX "," CY ") after activation failed")
         Click()
         DesktopPhase := "check"
         SetTimer(StepDesktop, DesktopWaitMs)
@@ -974,8 +984,10 @@ PressXStep() {
         ; 状态没找到：点一下记下的状态图标位置（有记下位置才点）。
         if (CalStatusX[Idx] != 0) {
             if (IconBright(CalStatusX[Idx], CalStatusY[Idx])) {
+                LogFind("D" Idx " status not found, recorded pos is bright, no click")
                 ToolTip("Desktop " Idx ": projector yes, status not found, recorded pos is bright, no click")
             } else {
+                LogFind("D" Idx " status not found, recorded pos is dark, click recorded pos (" CalStatusX[Idx] "," CalStatusY[Idx] ")")
                 ClickStatusIcon(CalStatusX[Idx], CalStatusY[Idx])
                 ToolTip("Desktop " Idx ": projector yes, status not found, clicked recorded pos")
             }
