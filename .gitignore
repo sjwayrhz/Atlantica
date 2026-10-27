@@ -1,5 +1,3 @@
 # 本地配置和日志，不进仓库（配置里有 Telegram token）
 fenix_Config.ini
-Atlantica_Config.ini
 fenix_Find_Log.txt
-Atlantica_Find_Log.txt
