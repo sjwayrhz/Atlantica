@@ -11,7 +11,7 @@ DetectHiddenWindows(true)
 ; ============================================================
 ; fenix 功能菜单（图形界面版，AHK v2）
 ; 原来的两个脚本已经合并到这一个窗口里，
-; 不会出现两个脚本都抢 F8 的冲突。
+; 不会出现两个脚本互相冲突。
 ;
 ; 功能：
 ;   1. 桌面轮询（F11）：按 F11 或点按钮启动后，三个桌面一直
@@ -55,8 +55,8 @@ DetectHiddenWindows(true)
 ;        不按 F；未知图标按 F、按 X、不点图标；放映机图标在、并且
 ;        状态图标是暗色，才按 F、按 X、点状态图标一下，尝试帮它
 ;        变亮色。放映机图标不在，就只按 F，不按 X、不点。一直重复。
-;      暂停：按 F8 手动暂停（轮询和开箱子都停），再按一次
-;      F8 继续。F11 是停止（再启动从桌面 1 重新开始），F9 是全部停止。
+;      暂停：点“暂停”按钮手动暂停（轮询和开箱子都停），再点
+;      一次继续。F11 是停止（再启动从桌面 1 重新开始）。
 ;   2. 开箱子（两点点击 + 右键点击合并）：
 ;      左边按钮：两种点击同时操作
 ;        两点点击：(700,450) 点一下 -> (822,450) 点一下，循环
@@ -69,8 +69,8 @@ DetectHiddenWindows(true)
 ;      再点一次正在运行的按钮就是停止。
 ;
 ; 使用：双击运行本脚本，点按钮或按快捷键即可。
-;       F11 开关桌面轮询，F12 开关开箱子，F9 统一暂停（不退出）。
-;       桌面轮询只有开始和暂停两个按钮（暂停和 F8 一样），参数
+;       F11 开关桌面轮询，F12 开关开箱子。
+;       桌面轮询只有开始和暂停两个按钮，参数
 ;       直接写死在代码里。开箱子的坐标用按钮取点（窗口会最小化，
 ;       在屏幕上点一下就行），点“保存配置”会存到同目录的
 ;       fenix_Config.ini，下次打开自动恢复。
@@ -124,7 +124,7 @@ GameTitle := "Atlantica Online Fenix"  ; 游戏窗口标题（截图里看到的
 CyclePhase := "main"
 CycleCount := 0
 CurrentDesktop := 0
-ManualPaused := false   ; F8 手动暂停的开关
+ManualPaused := false   ; 手动暂停的开关
 QuickSwitchEnabled := false ; 快捷切换桌面（键盘 F1/F2/F3）的开关，默认关
 Recording := false        ; 是不是正在录鼠标
 RecordEvents := []        ; 录下来的鼠标动作，每条是 [类型, X, Y, 间隔毫秒]
@@ -284,7 +284,7 @@ UpdateClickPosText()
 MyGui.Show("w380 h447")
 
 ; ===== 功能 1：桌面轮询 =====
-; F11 或点按钮启动：一直轮询，直到再按 F11 或 F9 停掉。
+; F11 或点按钮启动：一直轮询，直到再按 F11 或再点按钮停掉。
 ; 轮询时每轮按 F；放映机图标在，才按 X；放映机图标在、
 ; 并且状态图标是暗色，才点状态图标一下，尝试变亮色；未知图标不点。
 ; 三个功能互斥：同一时间只能跑一个。启动哪个功能，就先停掉另外两个；
@@ -353,13 +353,13 @@ StartCyclePhase(NewPhase) {
     txtDesktopStatus.Text := "状态：轮询中（放映机图标在才按 X，暗色才点状态图标，未知不点）"
 }
 
-; 是不是手动暂停了（F8）：轮询和开箱子都用这个判断。
+; 是不是手动暂停了：轮询和开箱子都用这个判断。
 UserBusy() {
     global ManualPaused
     return ManualPaused
 }
 
-; 轮询的暂停检查（只认 F8 手动暂停）：暂停返回 true，恢复返回 false。
+; 轮询的暂停检查（只认手动暂停）：暂停返回 true，恢复返回 false。
 CheckPaused() {
     global ManualPaused
     return ManualPaused
@@ -702,11 +702,11 @@ StepDesktop() {
     if (!DesktopRunning) {
         return
     }
-    ; 暂停：按了 F8 手动暂停，就停在这里，什么都不做；
-    ; 再按一次 F8 继续。
+    ; 暂停：点了手动暂停，就停在这里，什么都不做；
+    ; 再点一次继续。
     if (CheckPaused()) {
-        ToolTip("Paused manually (F8), press F8 again to resume")
-        txtDesktopStatus.Text := "状态：已暂停（F8 手动暂停，再按一次 F8 继续）"
+        ToolTip("Paused manually, click Continue to resume")
+        txtDesktopStatus.Text := "状态：已暂停（手动暂停，点「继续」恢复）"
         SetTimer(StepDesktop, 250)
         return
     }
@@ -1027,7 +1027,7 @@ ToggleSynth(*) {
 
 StepTwo() {
     global TwoPhase, Point1X, Point1Y, Point2X, Point2Y, WaitAfterFirst, WaitAfterSecond
-    ; 按了 F8 手动暂停，就不点，等再按 F8 继续后再点。
+    ; 手动暂停了，就不点，等点了继续后再点。
     if (UserBusy()) {
         SetTimer(StepTwo, 500)
         return
@@ -1047,7 +1047,7 @@ StepTwo() {
 
 StepRight() {
     global RightX, RightY
-    ; 按了 F8 手动暂停，就不点，下次定时到了再试。
+    ; 手动暂停了，就不点，下次定时到了再试。
     if (UserBusy()) {
         return
     }
@@ -1101,13 +1101,13 @@ ToggleClickHotkey(*) {
     }
 }
 
-; F8 = 手动暂停 / 继续（轮询和开箱子都停，再按一次继续）。
+; 手动暂停 / 继续（轮询和开箱子都停，再点一次继续）。
 ToggleManualPause(*) {
     global ManualPaused
     ManualPaused := !ManualPaused
     UpdatePauseButton()
     if (ManualPaused) {
-        ToolTip("Paused manually (F8), press F8 again to resume")
+        ToolTip("Paused manually, click Continue to resume")
     } else {
         ToolTip()
     }
@@ -1421,14 +1421,10 @@ PlayRecording(Count) {
 }
 
 ; ===== 快捷键 =====
-; F8  = 手动暂停 / 继续
 ; F11 = 桌面轮询 开启 / 停止（再启动从桌面 1 重新开始）
 ; F12 = 开箱子 开启 / 暂停
-; F9  = 统一暂停（全部停止，不退出程序，窗口还在，可再启动）
-F8::ToggleManualPause()
 F11::ToggleDesktop()
 F12::ToggleClickHotkey()
-F9::StopAll()
 SC029::ToggleQuickSwitch()
 
 ; 快捷切换桌面的键盘：只在开关打开时生效（默认关），
