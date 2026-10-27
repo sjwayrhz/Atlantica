@@ -475,14 +475,15 @@ IconBright(CX, CY) {
 }
 
 ; 点状态图标：点一下，然后模拟人工操作，在图标内部小范围移动鼠标 0.5 秒，
-; 再把鼠标移到屏幕中上方，免得鼠标挡住图标、影响下次识别。
+; 再把鼠标移到游戏窗口外面、左上方一点点的位置（5,5），
+; 免得鼠标挡住图标、影响下次识别。
 ClickStatusIcon(IconX, IconY) {
     Click(IconX, IconY)
     Loop 5 {
         MouseMove(IconX + Random(-18, 18), IconY + Random(-14, 14), 0)
         Sleep(100)
     }
-    MouseMove(A_ScreenWidth // 2, 200, 5)
+    MouseMove(5, 5, 5)
 }
 
 ; 找亮版状态图标（只用来定位亮色图标的位置、记下坐标，不参与
