@@ -1310,6 +1310,16 @@ StopQuickSwitch(*) {
     txtQuickStatus.Text := "状态：未录制"
 }
 
+; 显示一个提示，3 秒后自动消失（不然提示字会一直留在屏幕上）。
+ShowTempToolTip(Text) {
+    ToolTip(Text)
+    SetTimer(ClearToolTip, -3000)
+}
+
+ClearToolTip() {
+    ToolTip()
+}
+
 ; ===== 录鼠标 / 回放（快捷切换开着的时候才能用）=====
 ; 只录鼠标，不录键盘。录的是每次点下/松开左键/右键的位置和间隔。
 ; 回放按 4，执行一遍；回放中按 5 或 F9 可以停掉。
@@ -1349,14 +1359,14 @@ ToggleRecord(*) {
     global Recording, RecordEvents, RecordLastTick, RecordLastL, RecordLastR, PlayingBack, txtQuickStatus
     if (PlayingBack) {
         PlayingBack := false
-        ToolTip("回放已停止")
+        ShowTempToolTip("回放已停止")
         return
     }
     if (Recording) {
         Recording := false
         SetTimer(RecordPoll, 0)
         txtQuickStatus.Text := "状态：已录制 " RecordEvents.Length " 个动作，按 4 回放"
-        ToolTip("已录制 " RecordEvents.Length " 个动作，按 4 回放")
+        ShowTempToolTip("已录制 " RecordEvents.Length " 个动作，按 4 回放")
     } else {
         RecordEvents := []
         RecordLastTick := A_TickCount
@@ -1376,7 +1386,7 @@ PlayRecording(*) {
         return
     }
     if (RecordEvents.Length = 0) {
-        ToolTip("没有录制内容，先按 5 录一段")
+        ShowTempToolTip("没有录制内容，先按 5 录一段")
         return
     }
     PlayingBack := true
@@ -1406,7 +1416,7 @@ PlayRecording(*) {
     }
     PlayingBack := false
     txtQuickStatus.Text := "状态：已录制 " RecordEvents.Length " 个动作，按 4 回放"
-    ToolTip("回放完成")
+    ShowTempToolTip("回放完成")
 }
 
 ; ===== 快捷键 =====
