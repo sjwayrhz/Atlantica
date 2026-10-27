@@ -2,6 +2,12 @@
 #SingleInstance Force
 #Include FindText.ahk
 
+; 必须开：不然 WinGetList 只找得到当前桌面上的窗口，
+; 其他桌面上的游戏窗口会被当成隐藏窗口漏掉，
+; 对齐（AlignGameWindows）就永远只找到 1 个、没东西可挪。
+; 轮询不受影响，因为它每次只要当前桌面那一个窗口。
+DetectHiddenWindows(true)
+
 ; ============================================================
 ; fenix 功能菜单（图形界面版，AHK v2）
 ; 原来的两个脚本已经合并到这一个窗口里，
