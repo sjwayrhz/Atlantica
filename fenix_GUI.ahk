@@ -1292,14 +1292,26 @@ StartQuickSwitch(*) {
     QuickSwitchEnabled := true
     btnQuickStart.Enabled := false
     btnQuickStop.Enabled := true
+    ShowTempToolTip("快捷切换已开启")
     ; 2 秒后把其他两个桌面上的游戏窗口位置调成和当前桌面一样，
     ; 这样录的鼠标坐标换桌面也能用。
     SetTimer(AlignGameWindows, -2000)
 }
 
+; - 键：快捷切换的启动 / 停止开关（全局热键，不受开关状态限制）。
+ToggleQuickSwitch(*) {
+    global QuickSwitchEnabled
+    if (QuickSwitchEnabled) {
+        StopQuickSwitch()
+    } else {
+        StartQuickSwitch()
+    }
+}
+
 StopQuickSwitch(*) {
     global QuickSwitchEnabled, btnQuickStart, btnQuickStop
     global Recording, PlayingBack, txtQuickStatus
+    WasOn := QuickSwitchEnabled
     SetTimer(AlignGameWindows, 0)
     SetTimer(RecordPoll, 0)
     Recording := false
@@ -1308,6 +1320,9 @@ StopQuickSwitch(*) {
     btnQuickStart.Enabled := true
     btnQuickStop.Enabled := false
     txtQuickStatus.Text := "状态：未录制"
+    if (WasOn) {
+        ShowTempToolTip("快捷切换已停止")
+    }
 }
 
 ; 显示一个提示，3 秒后自动消失（不然提示字会一直留在屏幕上）。
@@ -1428,6 +1443,7 @@ F8::ToggleManualPause()
 F11::ToggleDesktop()
 F12::ToggleClickHotkey()
 F9::StopAll()
+-::ToggleQuickSwitch()
 
 ; 快捷切换桌面的键盘：只在开关打开时生效（默认关），
 ; 关了按 1/2/3 就是正常打字，不会切桌面。
