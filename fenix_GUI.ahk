@@ -71,9 +71,8 @@ DetectHiddenWindows(true)
 ; 使用：双击运行本脚本，点按钮或按快捷键即可。
 ;       F11 开关桌面轮询，F12 开关开箱子，F9 统一暂停（不退出）。
 ;       桌面轮询只有开始和暂停两个按钮（暂停和 F8 一样），参数
-;       不用界面填，用配置文件里的值（没保存过就用默认值）。
-;       点“保存配置”会把开箱子界面里当前填的坐标、间隔存到
-;       同目录的 fenix_Config.ini，下次打开自动恢复。
+;       直接写死在代码里。开箱子的坐标、间隔可以在界面里改，
+;       但只对这次运行有效，关掉脚本就恢复成代码里的值。
 ;       关窗口或点“退出”即全部停止并退出。
 ; 注意：功能 1 需要 VirtualDesktopAccessor.dll 和 FindText.ahk
 ;       都放在本脚本同目录，DLL 版本要和你的
@@ -192,22 +191,23 @@ RightX := 980
 RightY := 593
 RightClickInterval := 3500
 
-; ===== 配置文件（保存配置按钮用，下次打开自动恢复）=====
-; 文件不存在时用下面这些默认值，保存过一次后就用保存过的值。
-ConfigFile := A_ScriptDir "\fenix_Config.ini"
-CfgDesktopWait := IniRead(ConfigFile, "Desktop", "WaitMs", "1000")
-CfgDesktopKey := IniRead(ConfigFile, "Desktop", "Key", "f")
-CfgSwitchX := IniRead(ConfigFile, "Desktop", "SwitchX", "212")
-CfgSwitchY := IniRead(ConfigFile, "Desktop", "SwitchY", "57")
-CfgPoint1X := IniRead(ConfigFile, "Click", "Point1X", "700")
-CfgPoint1Y := IniRead(ConfigFile, "Click", "Point1Y", "450")
-CfgPoint2X := IniRead(ConfigFile, "Click", "Point2X", "822")
-CfgPoint2Y := IniRead(ConfigFile, "Click", "Point2Y", "450")
-CfgWaitAfterFirst := IniRead(ConfigFile, "Click", "WaitAfterFirst", "1000")
-CfgWaitAfterSecond := IniRead(ConfigFile, "Click", "WaitAfterSecond", "2000")
-CfgRightX := IniRead(ConfigFile, "Click", "RightX", "980")
-CfgRightY := IniRead(ConfigFile, "Click", "RightY", "593")
-CfgRightInterval := IniRead(ConfigFile, "Click", "RightInterval", "3500")
+; ===== 写死的参数（不再用 ini 文件）=====
+; 所有参数都直接写在代码里。开箱子的坐标、间隔可以在界面里改，
+; 但只对这次运行有效，关掉脚本就恢复成下面这些值；要永久改，
+; 就改下面这几行的值。
+CfgDesktopWait := "1000"
+CfgDesktopKey := "f"
+CfgSwitchX := "212"
+CfgSwitchY := "57"
+CfgPoint1X := "700"
+CfgPoint1Y := "450"
+CfgPoint2X := "822"
+CfgPoint2Y := "450"
+CfgWaitAfterFirst := "1000"
+CfgWaitAfterSecond := "2000"
+CfgRightX := "980"
+CfgRightY := "593"
+CfgRightInterval := "3500"
 
 ; ===== 图形界面 =====
 MyGui := Gui(, "fenix 功能菜单")
@@ -262,11 +262,9 @@ txtQuickStatus := MyGui.Add("Text", "x10 y335 w360", "状态：未录制")
 MyGui.Add("Text", "x10 y355 w360 h2 +0x1000")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y365 w115 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y365 w175 h30", "全部停止")
 btnStopAll.OnEvent("Click", StopAll)
-btnSaveConfig := MyGui.Add("Button", "x132 y365 w115 h30", "保存配置")
-btnSaveConfig.OnEvent("Click", SaveConfig)
-btnExit := MyGui.Add("Button", "x254 y365 w115 h30", "退出")
+btnExit := MyGui.Add("Button", "x195 y365 w175 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 MyGui.OnEvent("Close", (*) => ExitApp())
 
@@ -311,8 +309,8 @@ ToggleDesktop(*) {
     ; 启动轮询前先停掉另外两个功能（开箱子、快捷切换）。
     StopClickLoops()
     StopQuickSwitch()
-    ; 轮询参数不用界面填了，用配置文件里的值（没保存过就用默认值：
-    ; 间隔 1000 毫秒、按键 f、切换后点 (212,57)）。
+    ; 轮询参数不用界面填，直接用代码里写死的值（间隔 1000 毫秒、
+    ; 按键 f、切换后点 (212,57)）。
     DesktopWaitMs := Integer(CfgDesktopWait)
     DesktopKey := CfgDesktopKey
     SwitchClickX := Integer(CfgSwitchX)
@@ -1028,38 +1026,6 @@ StopAll(*) {
     StopClickLoops()
     StopQuickSwitch()
     ToolTip()
-}
-
-; ===== 保存配置 =====
-; 保存的是开箱子界面里当前填的值（不是正在运行的那份旧值），
-; 存到脚本同目录的 fenix_Config.ini，下次打开自动恢复。
-; 桌面轮询的参数不用界面填，但保存时也把启动时读到的那份
-; 一起写进去，这样 ini 里总有一份完整的 [Desktop]，下次
-; 打开照样用。正在运行时点保存也不会停掉正在跑的功能。
-SaveConfig(*) {
-    global ConfigFile
-    global CfgDesktopWait, CfgDesktopKey, CfgSwitchX, CfgSwitchY
-    global edtP1X, edtP1Y, edtP2X, edtP2Y, edtWait1, edtWait2, edtRightX, edtRightY, edtRightInterval
-    for ctrl in [edtP1X, edtP1Y, edtP2X, edtP2Y, edtWait1, edtWait2, edtRightX, edtRightY, edtRightInterval] {
-        if (!IsNumber(ctrl.Value)) {
-            MsgBox("有坐标或间隔不是数字，配置没有保存，请先改成数字再点保存配置。")
-            return
-        }
-    }
-    IniWrite(edtP1X.Value, ConfigFile, "Click", "Point1X")
-    IniWrite(edtP1Y.Value, ConfigFile, "Click", "Point1Y")
-    IniWrite(edtP2X.Value, ConfigFile, "Click", "Point2X")
-    IniWrite(edtP2Y.Value, ConfigFile, "Click", "Point2Y")
-    IniWrite(edtWait1.Value, ConfigFile, "Click", "WaitAfterFirst")
-    IniWrite(edtWait2.Value, ConfigFile, "Click", "WaitAfterSecond")
-    IniWrite(edtRightX.Value, ConfigFile, "Click", "RightX")
-    IniWrite(edtRightY.Value, ConfigFile, "Click", "RightY")
-    IniWrite(edtRightInterval.Value, ConfigFile, "Click", "RightInterval")
-    IniWrite(CfgDesktopWait, ConfigFile, "Desktop", "WaitMs")
-    IniWrite(CfgDesktopKey, ConfigFile, "Desktop", "Key")
-    IniWrite(CfgSwitchX, ConfigFile, "Desktop", "SwitchX")
-    IniWrite(CfgSwitchY, ConfigFile, "Desktop", "SwitchY")
-    MsgBox("配置已保存到：`n" ConfigFile "`n下次打开脚本会自动恢复这些坐标和间隔。")
 }
 
 ; F12 用的开关：未运行时启动两种点击同时模式，

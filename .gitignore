@@ -1,3 +1,2 @@
-# 本地配置和日志，不进仓库（配置里有 Telegram token）
-fenix_Config.ini
+# 本地日志，不进仓库
 fenix_Find_Log.txt
