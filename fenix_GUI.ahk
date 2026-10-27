@@ -868,7 +868,7 @@ MainCheckStep() {
     if (ProjFound && !DarkFound && !UnknownFound && !CheckStatusNotFound) {
         ; 放映机图标在、并且是非暗色（亮色）：只按 X，不按 F，不点。
         Send(DesktopKey2)
-        ToolTip("Desktop " Idx ": projector yes, non-dark, X only, no G, no click")
+        ToolTip("Desktop " Idx ": projector yes, non-dark, X only, no F, no click")
         DesktopPhase := "switch"
         SetTimer(StepDesktop, DesktopWaitMs)
         return
@@ -886,7 +886,7 @@ PressXStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey2, CheckProjFound
     Idx := CurrentDesktop + 1
     if (!CheckProjFound) {
-        ; 放映机图标不在：不按 X（只按了 G）。
+        ; 放映机图标不在：不按 X（只按了 F）。
         ToolTip("Desktop " Idx ": projector no, no X")
         DesktopPhase := "switch"
         SetTimer(StepDesktop, DesktopWaitMs)
