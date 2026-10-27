@@ -200,72 +200,70 @@ CfgRightInterval := IniRead(ConfigFile, "Click", "RightInterval", "3500")
 MyGui := Gui(, "fenix 功能菜单")
 MyGui.SetFont("s10")
 
-MyGui.Add("Text", "x10 y10 w360", "打开后点下面的功能按钮即可开始，再点一次停止。")
-
 ; ---- 功能 1：桌面轮询 ----
-MyGui.Add("Text", "x10 y40 w360", "1. 桌面轮询 (F11)")
-btnDesktop := MyGui.Add("Button", "x10 y65 w175 h30", "开始：桌面轮询")
+MyGui.Add("Text", "x10 y10 w360", "1. 桌面轮询 (F11)")
+btnDesktop := MyGui.Add("Button", "x10 y35 w175 h30", "开始：桌面轮询")
 btnDesktop.OnEvent("Click", ToggleDesktop)
-btnDesktopPause := MyGui.Add("Button", "x195 y65 w175 h30", "暂停")
+btnDesktopPause := MyGui.Add("Button", "x195 y35 w175 h30", "暂停")
 btnDesktopPause.OnEvent("Click", ToggleManualPause)
-txtDesktopStatus := MyGui.Add("Text", "x10 y100 w360", "状态：未运行")
+txtDesktopStatus := MyGui.Add("Text", "x10 y70 w360", "状态：未运行")
+MyGui.Add("Text", "x10 y90 w360 h2 +0x1000")
 
 ; ---- 功能 2：开箱子（两点点击 + 右键点击）----
-MyGui.Add("Text", "x10 y130 w360", "2. 开箱子 (F12)")
-MyGui.Add("Text", "x10 y155 w50", "点 1 X:")
-edtP1X := MyGui.Add("Edit", "x60 y152 w55", CfgPoint1X)
-MyGui.Add("Text", "x125 y155 w15", "Y:")
-edtP1Y := MyGui.Add("Edit", "x140 y152 w55", CfgPoint1Y)
-MyGui.Add("Text", "x205 y155 w50", "点 2 X:")
-edtP2X := MyGui.Add("Edit", "x255 y152 w55", CfgPoint2X)
-MyGui.Add("Text", "x320 y155 w15", "Y:")
-edtP2Y := MyGui.Add("Edit", "x335 y152 w35", CfgPoint2Y)
-MyGui.Add("Text", "x10 y182 w80", "点 1 后等(ms):")
-edtWait1 := MyGui.Add("Edit", "x95 y179 w60", CfgWaitAfterFirst)
-MyGui.Add("Text", "x165 y182 w80", "点 2 后等(ms):")
-edtWait2 := MyGui.Add("Edit", "x250 y179 w60", CfgWaitAfterSecond)
-MyGui.Add("Text", "x10 y212 w50", "右键 X:")
-edtRightX := MyGui.Add("Edit", "x60 y209 w60", CfgRightX)
-MyGui.Add("Text", "x130 y212 w15", "Y:")
-edtRightY := MyGui.Add("Edit", "x145 y209 w60", CfgRightY)
-MyGui.Add("Text", "x215 y212 w60", "间隔(ms):")
-edtRightInterval := MyGui.Add("Edit", "x280 y209 w70", CfgRightInterval)
-btnBoth := MyGui.Add("Button", "x10 y240 w150 h30", "两种点击同时操作")
+MyGui.Add("Text", "x10 y100 w360", "2. 开箱子 (F12)")
+MyGui.Add("Text", "x10 y125 w50", "点 1 X:")
+edtP1X := MyGui.Add("Edit", "x60 y122 w55", CfgPoint1X)
+MyGui.Add("Text", "x125 y125 w15", "Y:")
+edtP1Y := MyGui.Add("Edit", "x140 y122 w55", CfgPoint1Y)
+MyGui.Add("Text", "x205 y125 w50", "点 2 X:")
+edtP2X := MyGui.Add("Edit", "x255 y122 w55", CfgPoint2X)
+MyGui.Add("Text", "x320 y125 w15", "Y:")
+edtP2Y := MyGui.Add("Edit", "x335 y122 w35", CfgPoint2Y)
+MyGui.Add("Text", "x10 y152 w80", "点 1 后等(ms):")
+edtWait1 := MyGui.Add("Edit", "x95 y149 w60", CfgWaitAfterFirst)
+MyGui.Add("Text", "x165 y152 w80", "点 2 后等(ms):")
+edtWait2 := MyGui.Add("Edit", "x250 y149 w60", CfgWaitAfterSecond)
+MyGui.Add("Text", "x10 y182 w50", "右键 X:")
+edtRightX := MyGui.Add("Edit", "x60 y179 w60", CfgRightX)
+MyGui.Add("Text", "x130 y182 w15", "Y:")
+edtRightY := MyGui.Add("Edit", "x145 y179 w60", CfgRightY)
+MyGui.Add("Text", "x215 y182 w60", "间隔(ms):")
+edtRightInterval := MyGui.Add("Edit", "x280 y179 w70", CfgRightInterval)
+btnBoth := MyGui.Add("Button", "x10 y210 w150 h30", "两种点击同时操作")
 btnBoth.OnEvent("Click", ToggleBoth)
-btnRightOnly := MyGui.Add("Button", "x165 y240 w100 h30", "抽奖")
+btnRightOnly := MyGui.Add("Button", "x165 y210 w100 h30", "抽奖")
 btnRightOnly.OnEvent("Click", ToggleRightOnly)
-btnSynth := MyGui.Add("Button", "x270 y240 w100 h30", "合成")
+btnSynth := MyGui.Add("Button", "x270 y210 w100 h30", "合成")
 btnSynth.OnEvent("Click", ToggleSynth)
-txtClickStatus := MyGui.Add("Text", "x10 y275 w360", "状态：未运行")
+txtClickStatus := MyGui.Add("Text", "x10 y245 w360", "状态：未运行")
+MyGui.Add("Text", "x10 y265 w360 h2 +0x1000")
 
 ; ---- 3. 快捷切换桌面 ----
-MyGui.Add("Text", "x10 y305 w360", "3. 快捷切换桌面")
-btnDesk1 := MyGui.Add("Button", "x10 y330 w110 h30", "桌面 1")
-btnDesk1.OnEvent("Click", (*) => GoToDesktop(0))
-btnDesk2 := MyGui.Add("Button", "x135 y330 w110 h30", "桌面 2")
-btnDesk2.OnEvent("Click", (*) => GoToDesktop(1))
-btnDesk3 := MyGui.Add("Button", "x260 y330 w110 h30", "桌面 3")
-btnDesk3.OnEvent("Click", (*) => GoToDesktop(2))
-btnQuickSwitch := MyGui.Add("Button", "x10 y365 w360 h30", "快捷键：关")
-btnQuickSwitch.OnEvent("Click", ToggleQuickSwitch)
+MyGui.Add("Text", "x10 y275 w360", "3. 快捷切换桌面")
+btnQuickStart := MyGui.Add("Button", "x10 y300 w175 h30", "开始：快捷切换")
+btnQuickStart.OnEvent("Click", StartQuickSwitch)
+btnQuickStop := MyGui.Add("Button", "x195 y300 w175 h30", "停止")
+btnQuickStop.OnEvent("Click", StopQuickSwitch)
+btnQuickStop.Enabled := false
+MyGui.Add("Text", "x10 y335 w360 h2 +0x1000")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y405 w115 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y345 w115 h30", "全部停止")
 btnStopAll.OnEvent("Click", StopAll)
-btnSaveConfig := MyGui.Add("Button", "x132 y405 w115 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x132 y345 w115 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", SaveConfig)
-btnExit := MyGui.Add("Button", "x254 y405 w115 h30", "退出")
+btnExit := MyGui.Add("Button", "x254 y345 w115 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
-MyGui.Add("Text", "x10 y445 w360 h50", "提示：F11 桌面轮询（先检测 15 秒，再一直轮询；放映机图标在才按 X、暗色才点状态图标、未知图标不点），F12 开箱子，F9 全部停止（不退出）。F8 手动暂停/继续。快捷切换：点按钮切到桌面 1/2/3，打开快捷键后按键盘 1/2/3（上面那排，右边数字键盘不算）也能切。功能 1 需要同目录下的 VirtualDesktopAccessor.dll 和 FindText.ahk，DLL 版本须匹配 Windows。")
 MyGui.OnEvent("Close", (*) => ExitApp())
 
-; DLL 没加载成功时，禁用功能 1，不影响功能 2
+; DLL 没加载成功时，禁用功能 1 和快捷切换，不影响功能 2
 if (DesktopCount < 1) {
     btnDesktop.Enabled := false
+    btnQuickStart.Enabled := false
     txtDesktopStatus.Text := "状态：不可用（DLL 加载失败，请检查同目录的 VirtualDesktopAccessor.dll）"
 }
 
-MyGui.Show("w380 h500")
+MyGui.Show("w380 h385")
 
 ; ===== 功能 1：桌面轮询 =====
 ; F11 或点按钮启动：先检测 15 秒（轮询按 G，记录放映机图标
@@ -1200,11 +1198,20 @@ GoToDesktop(DesktopNum) {
     }
 }
 
-; 快捷键开关：开/关键盘 1/2/3 切桌面。按钮一直能点，不受开关影响。
-ToggleQuickSwitch(*) {
-    global QuickSwitchEnabled, btnQuickSwitch
-    QuickSwitchEnabled := !QuickSwitchEnabled
-    btnQuickSwitch.Text := QuickSwitchEnabled ? "快捷键：开" : "快捷键：关"
+; 快捷切换的开始/停止：开始打开键盘 1/2/3 切桌面，停止就关掉。
+; 开始后「开始」变灰、「停止」可用；停止后反过来。
+StartQuickSwitch(*) {
+    global QuickSwitchEnabled, btnQuickStart, btnQuickStop
+    QuickSwitchEnabled := true
+    btnQuickStart.Enabled := false
+    btnQuickStop.Enabled := true
+}
+
+StopQuickSwitch(*) {
+    global QuickSwitchEnabled, btnQuickStart, btnQuickStop
+    QuickSwitchEnabled := false
+    btnQuickStart.Enabled := true
+    btnQuickStop.Enabled := false
 }
 
 ; ===== 快捷键 =====
