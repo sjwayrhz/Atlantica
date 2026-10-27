@@ -68,9 +68,9 @@ DetectHiddenWindows(true)
 ;      三个按钮互斥：点另一个会先停掉当前模式再启动新模式；
 ;      再点一次正在运行的按钮就是停止。
 ;   3. 跟随队长（F10，在“快捷切换桌面”区里）：
-;      点“开启跟随队长”或按 F10 启动，再按一次停掉；和快捷切换
-;      不冲突，可以叠加使用。启动后循环跑四步，都是左键点击，
-;      每步间隔 0.5 秒：P 点 -> 队长名称 -> 跟随队员 -> X 点。
+;      点“开启跟随队长 (F10)”或按 F10 启动，跑一遍四步、点完 X 点
+;      自动停；中途再按一次可以停掉。和快捷切换不冲突，可以叠加使用。
+;      都是左键点击，每步间隔 0.5 秒：P 点 -> 队长名称 -> 跟随队员 -> X 点。
 ;      四个点用按钮取点（窗口会最小化，在屏幕上点一下就行）。
 ;
 ; 使用：双击运行本脚本，点按钮或按快捷键即可。
@@ -271,14 +271,17 @@ txtClickStatus := MyGui.Add("Text", "x10 y227 w360", "状态：未运行")
 MyGui.Add("Text", "x10 y247 w360 h2 +0x1000")
 
 ; ---- 3. 快捷切换桌面 ----
-MyGui.Add("Text", "x10 y257 w360", "3. 快捷切换桌面")
+MyGui.Add("Text", "x10 y257 w360", "3. 快捷切换桌面 (~)")
 btnQuickStart := MyGui.Add("Button", "x10 y282 w175 h30", "开始：快捷切换")
 btnQuickStart.OnEvent("Click", StartQuickSwitch)
 btnQuickStop := MyGui.Add("Button", "x195 y282 w175 h30", "停止")
 btnQuickStop.OnEvent("Click", StopQuickSwitch)
 btnQuickStop.Enabled := false
 ; ---- 3.1 跟随队长（和快捷切换不冲突，可以叠加使用；F10 开启 / 停止）----
-btnFollow := MyGui.Add("Button", "x10 y322 w360 h30", "开启跟随队长")
+; 分组框把“开启跟随队长”按钮和下面四个取点按钮框在一起（AHK 自带的
+; 分组框是细实线边框，不是虚线；框住五个按钮、看起来是一个模块就行）。
+grpFollow := MyGui.Add("GroupBox", "x8 y315 w364 h85", "")
+btnFollow := MyGui.Add("Button", "x10 y322 w360 h30", "开启跟随队长 (F10)")
 btnFollow.OnEvent("Click", ToggleFollow)
 btnCapFollowP := MyGui.Add("Button", "x10 y362 w87 h30", "P点")
 btnCapFollowP.OnEvent("Click", (*) => CapturePos(4))
@@ -288,17 +291,17 @@ btnCapFollowMember := MyGui.Add("Button", "x192 y362 w87 h30", "跟随队员")
 btnCapFollowMember.OnEvent("Click", (*) => CapturePos(6))
 btnCapFollowX := MyGui.Add("Button", "x283 y362 w87 h30", "X点")
 btnCapFollowX.OnEvent("Click", (*) => CapturePos(7))
-txtFollowPos := MyGui.Add("Text", "x10 y397 w360 h28", "")
-txtFollowStatus := MyGui.Add("Text", "x10 y427 w360", "状态：未运行")
-txtQuickStatus := MyGui.Add("Text", "x10 y452 w360", "状态：未录制")
-MyGui.Add("Text", "x10 y477 w360 h2 +0x1000")
+txtFollowPos := MyGui.Add("Text", "x10 y407 w360 h28", "")
+txtFollowStatus := MyGui.Add("Text", "x10 y437 w360", "状态：未运行")
+txtQuickStatus := MyGui.Add("Text", "x10 y462 w360", "状态：未录制")
+MyGui.Add("Text", "x10 y487 w360 h2 +0x1000")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y487 w115 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y497 w115 h30", "全部停止")
 btnStopAll.OnEvent("Click", StopAll)
-btnSaveConfig := MyGui.Add("Button", "x132 y487 w115 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x132 y497 w115 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", SaveConfig)
-btnExit := MyGui.Add("Button", "x254 y487 w115 h30", "退出")
+btnExit := MyGui.Add("Button", "x254 y497 w115 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 MyGui.OnEvent("Close", (*) => ExitApp())
 
@@ -312,7 +315,7 @@ if (DesktopCount < 1) {
 UpdateClickPosText()
 UpdateFollowPosText()
 
-MyGui.Show("w380 h587")
+MyGui.Show("w380 h597")
 
 ; ===== 功能 1：桌面轮询 =====
 ; F11 或点按钮启动：一直轮询，直到再按 F11 或再点按钮停掉。
@@ -1093,9 +1096,9 @@ StopAll(*) {
 }
 
 ; ===== 跟随队长（F10 / “开启跟随队长”按钮）=====
-; 和快捷切换不冲突，可以叠加使用；启动后循环跑下面四步，每步间隔 0.5 秒，
-; 再按 F10（或点按钮、或点“全部停止”）停掉。都是左键点击。
-; 顺序：P 点 -> 队长名称 -> 跟随队员 -> X 点 -> 回到 P 点……
+; 和快捷切换不冲突，可以叠加使用；启动后跑一遍下面四步，点完 X 点自动停，
+; 中途再按 F10（或点按钮、或点“全部停止”）可以停掉。都是左键点击。
+; 顺序：P 点 -> 队长名称 -> 跟随队员 -> X 点，每步间隔 0.5 秒。
 StepFollow() {
     global FollowRunning, FollowStep
     global FollowPX, FollowPY, FollowLeaderX, FollowLeaderY, FollowMemberX, FollowMemberY, FollowXX, FollowXY
@@ -1115,18 +1118,21 @@ StepFollow() {
         Click(FollowMemberX, FollowMemberY)
     } else {
         Click(FollowXX, FollowXY)
+        StopFollow()
+        ShowTempToolTip("跟随队长已完成")
+        return
     }
-    FollowStep := Mod(FollowStep + 1, 4)
+    FollowStep := FollowStep + 1
     SetTimer(StepFollow, 500)
 }
 
 UpdateFollowButtons() {
     global FollowRunning, btnFollow, txtFollowStatus
     if (FollowRunning) {
-        btnFollow.Text := "停止跟随队长"
+        btnFollow.Text := "停止跟随队长 (F10)"
         txtFollowStatus.Text := "状态：运行中（跟随队长）"
     } else {
-        btnFollow.Text := "开启跟随队长"
+        btnFollow.Text := "开启跟随队长 (F10)"
         txtFollowStatus.Text := "状态：未运行"
     }
 }
