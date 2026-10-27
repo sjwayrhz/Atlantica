@@ -1101,6 +1101,7 @@ AlignGameWindows() {
         LogFind("align: exception getting desktop/window list: " Err.Message)
         return
     }
+    LogFind("align: current desktop=" CurrentDesk ", windows found=" WinList.Length)
     if (WinList.Length = 0) {
         LogFind("align: no game window found")
         return
@@ -1113,14 +1114,18 @@ AlignGameWindows() {
     for hWnd in WinList {
         try {
             Desk := DllCall(GetWindowDesktopNumberProc, "Ptr", hWnd, "Int")
-        } catch {
+        } catch as Err {
+            LogFind("align: GetWindowDesktopNumber failed for hwnd=" hWnd ": " Err.Message)
             continue
         }
+        LogFind("align: hwnd=" hWnd " is on desktop " Desk)
         if (Desk = CurrentDesk) {
             try {
                 WinGetPos(&RefX, &RefY, &RefW, &RefH, "ahk_id " hWnd)
                 Found := true
-            } catch {
+                LogFind("align: reference window hwnd=" hWnd " at (" RefX "," RefY " " RefW "x" RefH ")")
+            } catch as Err {
+                LogFind("align: WinGetPos failed for hwnd=" hWnd ": " Err.Message)
             }
             break
         }
@@ -1132,17 +1137,22 @@ AlignGameWindows() {
     for hWnd in WinList {
         try {
             Desk := DllCall(GetWindowDesktopNumberProc, "Ptr", hWnd, "Int")
-        } catch {
+        } catch as Err {
+            LogFind("align: GetWindowDesktopNumber failed for hwnd=" hWnd ": " Err.Message)
             continue
         }
         if (Desk != CurrentDesk) {
             try {
                 WinMove(RefX, RefY, RefW, RefH, "ahk_id " hWnd)
                 LogFind("align: moved hwnd=" hWnd " (desktop " Desk ") to (" RefX "," RefY " " RefW "x" RefH ")")
-            } catch {
+            } catch as Err {
+                LogFind("align: WinMove failed for hwnd=" hWnd ": " Err.Message)
             }
+        } else {
+            LogFind("align: hwnd=" hWnd " already on current desktop, skip")
         }
     }
+    LogFind("align: done")
 }
 
 ; ===== 快捷切换桌面 =====
