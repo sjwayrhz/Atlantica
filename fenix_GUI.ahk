@@ -17,7 +17,7 @@ DetectHiddenWindows(true)
 ;   1. 桌面轮询（F11）：按 F11 或点按钮启动后，三个桌面一直
 ;      轮询切换，停掉之前不会自己停。
 ;      切到每个桌面后，先激活游戏窗口（窗口是窗口模式跑的，
-;      不激活的话按 G/X 进不去游戏；以前要手动点一下窗口，
+;      不激活的话按 F/X 进不去游戏；以前要手动点一下窗口，
 ;      现在脚本自己激活，不用手动点了）。先按窗口标题找：
 ;      标题是 "Atlantica Online Fenix"，三个桌面标题都一样，
 ;      但每个桌面只有一个游戏窗口，用 DLL 的
@@ -26,7 +26,7 @@ DetectHiddenWindows(true)
 ;      找（图标在当前桌面上，图标位置的窗口就是当前这个桌面的
 ;      游戏窗口）。
 ;      轮询时先看放映机图标和状态图标：放映机图标在、并且是
-;      非暗色，就只按 X、不按 G；其他情况按 G，放映机图标在才
+;      非暗色，就只按 X、不按 F；其他情况按 F，放映机图标在才
 ;      在约 0.05 秒后按 X。
 ;      状态图标是交叉双剑的方形图标：亮版底色浅蓝、暗版底色
 ;      深紫，图标里的数字会变，只认图案不看数字。三种状态：
@@ -52,9 +52,9 @@ DetectHiddenWindows(true)
 ;      轮询：
 ;        每轮到一个桌面：先激活游戏窗口，再在窗口里面找放映机
 ;        图标和状态图标；放映机图标在、并且是非暗色，就只按 X、
-;        不按 G；未知图标按 G、按 X、不点图标；放映机图标在、并且
-;        状态图标是暗色，才按 G、按 X、点状态图标一下，尝试帮它
-;        变亮色。放映机图标不在，就只按 G，不按 X、不点。一直重复。
+;        不按 F；未知图标按 F、按 X、不点图标；放映机图标在、并且
+;        状态图标是暗色，才按 F、按 X、点状态图标一下，尝试帮它
+;        变亮色。放映机图标不在，就只按 F，不按 X、不点。一直重复。
 ;      暂停：按 F8 手动暂停（轮询和开箱子都停），再按一次
 ;      F8 继续。F11 是停止（再启动从桌面 1 重新开始），F9 是全部停止。
 ;   2. 开箱子（两点点击 + 右键点击合并）：
@@ -106,9 +106,9 @@ DesktopRunning := false
 DesktopNext := 0        ; 下一个要去的桌面（从 0 开始，即桌面 1）
 DesktopPhase := "switch"
 DesktopWaitMs := 1000
-DesktopKey := "g"
-DesktopKey2 := "x"      ; 每次按 G 后再按的第二个键
-KeyGapMs := 50          ; 按 G 和按 X 之间相隔的毫秒数（约 0.05 秒）
+DesktopKey := "f"
+DesktopKey2 := "x"      ; 每次按 F 后再按的第二个键
+KeyGapMs := 50          ; 按 F 和按 X 之间相隔的毫秒数（约 0.05 秒）
 SwitchClickX := 212     ; 每次切换后要点的固定位置
 SwitchClickY := 57
 GameTitle := "Atlantica Online Fenix"  ; 游戏窗口标题（截图里看到的；三个桌面都一样，但每个桌面只有一个，用 DLL 挑当前桌面上的那一个）
@@ -119,7 +119,7 @@ GameTitle := "Atlantica Online Fenix"  ; 游戏窗口标题（截图里看到的
 ; 的：第一次全窗口找并记下位置，以后只在记录位置附近找。
 ; DesktopPhase 是每一步的小阶段：switch 切桌面、activate 激活游戏窗口
 ; （先按标题找，找不到再用图标位置）、click212 点切换后坐标、click 原地点击、
-; check 检查放映机图标和状态图标（决定按 G 还是只按 X、点不点
+; check 检查放映机图标和状态图标（决定按 F 还是只按 X、点不点
 ; 状态图标）、pressX 按 X 和点图标。
 CyclePhase := "main"
 CycleCount := 0
@@ -196,7 +196,7 @@ RightClickInterval := 3500
 ; 文件不存在时用下面这些默认值，保存过一次后就用保存过的值。
 ConfigFile := A_ScriptDir "\fenix_Config.ini"
 CfgDesktopWait := IniRead(ConfigFile, "Desktop", "WaitMs", "1000")
-CfgDesktopKey := IniRead(ConfigFile, "Desktop", "Key", "g")
+CfgDesktopKey := IniRead(ConfigFile, "Desktop", "Key", "f")
 CfgSwitchX := IniRead(ConfigFile, "Desktop", "SwitchX", "212")
 CfgSwitchY := IniRead(ConfigFile, "Desktop", "SwitchY", "57")
 CfgPoint1X := IniRead(ConfigFile, "Click", "Point1X", "700")
@@ -281,7 +281,7 @@ MyGui.Show("w380 h405")
 
 ; ===== 功能 1：桌面轮询 =====
 ; F11 或点按钮启动：一直轮询，直到再按 F11 或 F9 停掉。
-; 轮询时每轮按 G；放映机图标在，才按 X；放映机图标在、
+; 轮询时每轮按 F；放映机图标在，才按 X；放映机图标在、
 ; 并且状态图标是暗色，才点状态图标一下，尝试变亮色；未知图标不点。
 ; 三个功能互斥：同一时间只能跑一个。启动哪个功能，就先停掉另外两个；
 ; 以后加新功能也按这个规矩——启动时停掉其他所有功能。
@@ -312,7 +312,7 @@ ToggleDesktop(*) {
     StopClickLoops()
     StopQuickSwitch()
     ; 轮询参数不用界面填了，用配置文件里的值（没保存过就用默认值：
-    ; 间隔 1000 毫秒、按键 g、切换后点 (212,57)）。
+    ; 间隔 1000 毫秒、按键 f、切换后点 (212,57)）。
     DesktopWaitMs := Integer(CfgDesktopWait)
     DesktopKey := CfgDesktopKey
     SwitchClickX := Integer(CfgSwitchX)
@@ -546,7 +546,7 @@ FindDark(Idx, &OutX, &OutY) {
 ; 找未知状态图标（判断未知用）：就是那张全黑、剑也是黑的、只有边框是亮的
 ; 交叉双剑图标（46x41，阈值 82，从你发的截图整个图标转的）。它和亮版、
 ; 暗版图案都认不到对方（交叉验证过），所以图案本身就够了，不用再验亮度。
-; 找到返回 true，OutX/OutY 是图标中心。未知图标不点，只按 G 和 X。
+; 找到返回 true，OutX/OutY 是图标中心。未知图标不点，只按 F 和 X。
 FindUnknown(Idx, &OutX, &OutY) {
     global UnknownText, CalStatusX, CalStatusY
     RX := (Idx >= 1 && Idx <= CalStatusX.Length) ? CalStatusX[Idx] : 0
@@ -657,8 +657,8 @@ ActivateGameWindow(IconX, IconY) {
 ; 每轮：切桌面 -> 停 0.5 秒 -> 激活游戏窗口（先按标题找，找不到再用图标位置）
 ; 激活成功就直接去检查（左上角那两下点击本来就是为了聚焦，激活成功就没意义了）；
 ; 激活失败才点 (212,57) -> 停 0.5 秒 -> 原地点一下 -> 等 1000 毫秒 -> 检查放映机图标和状态图标
-; （放映机图标在、并且是非暗色，就只按 X、不按 G；其他情况
-; 按 G，放映机图标在才在约 0.05 秒后按 X；放映机图标在、
+; （放映机图标在、并且是非暗色，就只按 X、不按 F；其他情况
+; 按 F，放映机图标在才在约 0.05 秒后按 X；放映机图标在、
 ; 状态图标是暗色，才点状态图标）。
 ; 切到指定桌面，并且等切换真正完成（当前桌面号变成目标桌面）再返回。
 ; 切桌面卡顿时，只等固定时间可能不够，后面的找图标会读到上一个桌面
@@ -713,7 +713,7 @@ StepDesktop() {
         DesktopPhase := "activate"
         SetTimer(StepDesktop, 500)   ; 切换后先停 0.5 秒
     } else if (DesktopPhase = "activate") {
-        ; 切完桌面先激活游戏窗口，这样后面的按 G/X 才进游戏，
+        ; 切完桌面先激活游戏窗口，这样后面的按 F/X 才进游戏，
         ; 不用再手动点窗口。先按标题找（每个桌面只有一个游戏窗口，
         ; 用 DLL 挑出当前桌面上的那一个），找不到再用图标位置找。
         ; 激活成功的话，左上角 (212,57) 那两下点击就没意义了（本来
@@ -766,13 +766,13 @@ StepDesktop() {
 ; 再按下面规则做。三种状态：暗色（暗版图案找到）、未知
 ; （未知图案找到）、非暗色（亮版图案找到）；都没找到就是
 ; 状态没找到（not found）。
-;   1. 放映机图标在、并且是非暗色：只按 X，不按 G，不点。
-;   2. 未知：按 G；放映机图标在，才在约 0.05 秒后按 X；不点图标。
-;   3. 暗色：按 G；放映机图标在，才在约 0.05 秒后按 X；
+;   1. 放映机图标在、并且是非暗色：只按 X，不按 F，不点。
+;   2. 未知：按 F；放映机图标在，才在约 0.05 秒后按 X；不点图标。
+;   3. 暗色：按 F；放映机图标在，才在约 0.05 秒后按 X；
 ;      放映机图标在，才点状态图标一下，尝试帮它变亮色；
 ;      点完下轮再来检查，不单独验证。
-;   4. 状态没找到：放映机图标在时，按 G、按 X，点一下记下的
-;      状态图标位置（有记下位置才点）；放映机不在就只按 G。
+;   4. 状态没找到：放映机图标在时，按 F、按 X，点一下记下的
+;      状态图标位置（有记下位置才点）；放映机不在就只按 F。
 MainCheckStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey, DesktopKey2, KeyGapMs
     global CheckProjFound, CheckStatusNotFound
@@ -820,22 +820,22 @@ MainCheckStep() {
     } else {
         NonDarkSince[Idx] := 0
     }
-    ; 暗色 + 放映机在：发现就马上点（按 G 之前点，点的是这次刚找到的位置；
-    ; 按 G 可能过图，等 0.05 秒后再点位置就变了）。
+    ; 暗色 + 放映机在：发现就马上点（按 F 之前点，点的是这次刚找到的位置；
+    ; 按 F 可能过图，等 0.05 秒后再点位置就变了）。
     if (ProjFound && DarkFound) {
         ClickStatusIcon(DX, DY)
         LogFind("D" Idx " dark found, clicked immediately")
         ToolTip("Desktop " Idx ": projector yes, dark, clicked immediately")
     }
     if (ProjFound && !DarkFound && !UnknownFound && !CheckStatusNotFound) {
-        ; 放映机图标在、并且是非暗色（亮色）：只按 X，不按 G，不点。
+        ; 放映机图标在、并且是非暗色（亮色）：只按 X，不按 F，不点。
         Send(DesktopKey2)
         ToolTip("Desktop " Idx ": projector yes, non-dark, X only, no G, no click")
         DesktopPhase := "switch"
         SetTimer(StepDesktop, DesktopWaitMs)
         return
     }
-    ; 暗色、未知、状态没找到：按 G，约 0.05 秒后到 pressX 步（放映机图标在才按 X）。
+    ; 暗色、未知、状态没找到：按 F，约 0.05 秒后到 pressX 步（放映机图标在才按 X）。
     Send(DesktopKey)
     DesktopPhase := "pressX"
     SetTimer(StepDesktop, KeyGapMs)
