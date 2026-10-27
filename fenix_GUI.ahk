@@ -9,7 +9,7 @@
 ;
 ; 功能：
 ;   1. 桌面轮询（F11）：按 F11 或点按钮启动后，三个桌面一直
-;      轮询切换，停掉之前不会自己停。先检测 15 秒，再一直轮询。
+;      轮询切换，停掉之前不会自己停。
 ;      切到每个桌面后，先激活游戏窗口（窗口是窗口模式跑的，
 ;      不激活的话按 G/X 进不去游戏；以前要手动点一下窗口，
 ;      现在脚本自己激活，不用手动点了）。先按窗口标题找：
@@ -37,26 +37,20 @@
 ;      （亮点不到一半才是真暗色），因为亮版图标底色浅、亮点多，
 ;      图案万一认错亮版，亮度能把它拦下来。未知图案和亮版、暗版
 ;      都认不到对方，图案本身就够了，不用再验亮度。
-;      记下位置后只在记录位置附近（中心 ±60/±50）找，范围收
-;      小了，屏幕别处的暗色误匹配进不来。
+;      在游戏窗口里面全窗口找图标，不用记位置：窗口挪位置、
+;      图标挪位置都能找到；窗口外面不找，屏幕别处的暗色
+;      误匹配进不来。
 ;      之前用的 ImageSearch 模板图里带了会变的数字和游戏背景角，
 ;      数字一变、背景一换就整张对不上，所以完全找不到；FindText
 ;      只比图案本身的明暗形状，容错 0.1，数字变了也不影响。
-;      记下图标中心后，只在记录位置附近找。
-;      第 1 步 检测 15 秒：
-;        同时在每个桌面找放映机图标和状态图标，记下各自中心
-;        的坐标，光标旁会提示找到没有；这 15 秒只检测、不点
-;        图标，按 G 还是按 X 和轮询一样。
-;      第 2 步 一直轮询：
-;        每轮到一个桌面：先看放映机图标和状态图标；放映机图标
-;        在、并且是非暗色，就只按 X、不按 G；未知图标按 G、按 X、
-;        不点图标；放映机图标在、并且状态图标是暗色，才按 G、按 X、
-;        点状态图标一下，尝试帮它变亮色。放映机图标不在，就只按 G，
-;        不按 X、不点。一直重复。
+;      轮询：
+;        每轮到一个桌面：先激活游戏窗口，再在窗口里面找放映机
+;        图标和状态图标；放映机图标在、并且是非暗色，就只按 X、
+;        不按 G；未知图标按 G、按 X、不点图标；放映机图标在、并且
+;        状态图标是暗色，才按 G、按 X、点状态图标一下，尝试帮它
+;        变亮色。放映机图标不在，就只按 G，不按 X、不点。一直重复。
 ;      暂停：按 F8 手动暂停（轮询和开箱子都停），再按一次
-;      F8 继续；检测 15 秒的计时暂停时也跟着停（暂停多久
-;      就往后顺延多久）。F11 是停止（再启动会从检测重新
-;      开始），F9 是全部停止。
+;      F8 继续。F11 是停止（再启动从桌面 1 重新开始），F9 是全部停止。
 ;   2. 开箱子（两点点击 + 右键点击合并）：
 ;      左边按钮：两种点击同时操作
 ;        两点点击：(700,450) 点一下 -> (822,450) 点一下，循环
@@ -114,16 +108,15 @@ SwitchClickY := 57
 GameTitle := "Atlantica Online Fenix"  ; 游戏窗口标题（截图里看到的；三个桌面都一样，但每个桌面只有一个，用 DLL 挑当前桌面上的那一个）
 
 ; ===== 轮询循环（功能 1）的阶段和计时 =====
-; CyclePhase：detect 检测 15 秒 -> main 一直轮询。
+; 没有检测阶段了：每次到一个桌面，先激活游戏窗口，再在游戏窗口
+; 里面全窗口找图标（放映机图标和状态图标），找到就按规则处理。
 ; DesktopPhase 是每一步的小阶段：switch 切桌面、activate 激活游戏窗口
 ; （先按标题找，找不到再用图标位置）、click212 点切换后坐标、click 原地点击、
 ; check 检查放映机图标和状态图标（决定按 G 还是只按 X、点不点
 ; 状态图标）、pressX 按 X 和点图标。
-CyclePhase := ""
-CycleStart := 0
+CyclePhase := "main"
 CycleCount := 0
 CurrentDesktop := 0
-DetectSeconds := 15     ; 开头检测多少秒
 ManualPaused := false   ; F8 手动暂停的开关
 QuickSwitchEnabled := false ; 快捷切换桌面（键盘 F1/F2/F3）的开关，默认关
 Recording := false        ; 是不是正在录鼠标
@@ -132,14 +125,11 @@ RecordLastTick := 0       ; 上一个录下来的动作是什么时候（A_TickC
 RecordLastL := false      ; 上次轮询时左键是不是按着
 RecordLastR := false      ; 上次轮询时右键是不是按着
 PlayingBack := false      ; 是不是正在回放
-PauseStartTick := 0     ; 本次暂停开始的时间，0 表示没在暂停
-; 检测时记下的图标中心坐标（下标从 1 开始，对应桌面 1、2、3……）
-; 0 表示该桌面还没找到这个点。
-CalStatusX := []        ; 状态图标（双剑）中心
-CalStatusY := []
-CalProjX := []          ; 放映机图标中心
-CalProjY := []
-CalOK := []
+; 刚激活的游戏窗口的位置和大小，找图标只在这个窗口里面找。
+GameWinX := 0
+GameWinY := 0
+GameWinW := 0
+GameWinH := 0
 NonDarkSince := []     ; 每个桌面连续非暗色（亮色）是从什么时候开始的（A_TickCount），0 表示没在连续
 NonDarkClickMs := 1200000 ; 连续非暗色超过 20 分钟，就点一下状态图标（怕是误判）
 CheckProjFound := false ; 这轮检查：放映机图标在不在（check 步记下，pressX 步用）
@@ -277,8 +267,7 @@ if (DesktopCount < 1) {
 MyGui.Show("w380 h405")
 
 ; ===== 功能 1：桌面轮询 =====
-; F11 或点按钮启动：先检测 15 秒（轮询按 G，记录放映机图标
-; 和状态图标的位置），再一直轮询，直到再按 F11 或 F9 停掉。
+; F11 或点按钮启动：一直轮询，直到再按 F11 或 F9 停掉。
 ; 轮询时每轮按 G；放映机图标在，才按 X；放映机图标在、
 ; 并且状态图标是暗色，才点状态图标一下，尝试变亮色；未知图标不点。
 ; 三个功能互斥：同一时间只能跑一个。启动哪个功能，就先停掉另外两个；
@@ -299,8 +288,7 @@ ToggleDesktop(*) {
     global DesktopRunning, DesktopPhase, DesktopWaitMs, DesktopKey, SwitchClickX, SwitchClickY
     global btnDesktop, txtDesktopStatus
     global CfgDesktopWait, CfgDesktopKey, CfgSwitchX, CfgSwitchY
-    global CyclePhase, CycleStart, CycleCount, DesktopNext, CurrentDesktop, DesktopCount
-    global CalStatusX, CalStatusY, CalProjX, CalProjY, CalOK
+    global CyclePhase, CycleCount, DesktopNext, CurrentDesktop, DesktopCount
     if (DesktopRunning) {
         StopDesktopPolling()
         ToolTip()
@@ -317,66 +305,24 @@ ToggleDesktop(*) {
     SwitchClickY := Integer(CfgSwitchY)
     DesktopRunning := true
     CycleCount++
-    ; 检测记录清零，下标从 1 开始，对应桌面 1、2、3……
-    CalStatusX := []
-    CalStatusY := []
-    CalProjX := []
-    CalProjY := []
-    CalOK := []
-    Loop DesktopCount {
-        CalStatusX.Push(0)
-        CalStatusY.Push(0)
-        CalProjX.Push(0)
-        CalProjY.Push(0)
-        CalOK.Push(false)
-    }
     DesktopNext := 0
     CurrentDesktop := 0
-    StartCyclePhase("detect")
+    StartCyclePhase("main")
     btnDesktop.Text := "停止：桌面轮询"
     StepDesktop()
 }
 
-; 切到一个新阶段：记下开始时间，从桌面 1 重新开始轮询。
+; 开始轮询：从桌面 1 重新开始。
 StartCyclePhase(NewPhase) {
-    global CyclePhase, CycleStart, DesktopPhase, DesktopNext, CurrentDesktop
+    global CyclePhase, DesktopPhase, DesktopNext, CurrentDesktop
     global txtDesktopStatus
     CyclePhase := NewPhase
-    CycleStart := A_TickCount
     DesktopPhase := "switch"
     DesktopNext := 0
     CurrentDesktop := 0
     ToolTip()
-    if (NewPhase = "detect") {
-        txtDesktopStatus.Text := "状态：检测 15 秒（轮询按 G，记录放映机图标和状态图标位置）"
-    } else if (NewPhase = "main") {
-        txtDesktopStatus.Text := "状态：轮询中（放映机图标在才按 X，暗色才点状态图标，未知不点）"
-    }
+    txtDesktopStatus.Text := "状态：轮询中（放映机图标在才按 X，暗色才点状态图标，未知不点）"
 }
-; 检查当前阶段是否该结束了，结束了就切到下一阶段，返回 true。
-; 检查检测阶段是否结束（15 秒到了就切到一直轮询），返回 true。
-CheckPhaseEnd() {
-    global CyclePhase, CycleStart, DetectSeconds
-    if (CyclePhase = "detect") {
-        if (A_TickCount - CycleStart >= DetectSeconds * 1000) {
-            StartCyclePhase("main")
-            return true
-        }
-    }
-    return false
-}
-
-; 毫秒转 MM:SS（倒计时显示用）。
-FormatMMSS(Ms) {
-    if (Ms < 0) {
-        Ms := 0
-    }
-    M := Ms // 60000
-    S := Mod(Ms // 1000, 60)
-    return Format("{:02d}:{:02d}", M, S)
-}
-
-
 
 ; 是不是手动暂停了（F8）：轮询和开箱子都用这个判断。
 UserBusy() {
@@ -385,20 +331,9 @@ UserBusy() {
 }
 
 ; 轮询的暂停检查（只认 F8 手动暂停）：暂停返回 true，恢复返回 false。
-; 暂停期间检测计时跟着停，恢复时把暂停的时间补回 CycleStart。
 CheckPaused() {
-    global ManualPaused, PauseStartTick, CycleStart
-    if (!ManualPaused) {
-        if (PauseStartTick != 0) {
-            CycleStart += (A_TickCount - PauseStartTick)
-            PauseStartTick := 0
-        }
-        return false
-    }
-    if (PauseStartTick = 0) {
-        PauseStartTick := A_TickCount
-    }
-    return true
+    global ManualPaused
+    return ManualPaused
 }
 
 ; 把一次找到的结果记到脚本同目录的 fenix_Find_Log.txt，
@@ -449,34 +384,29 @@ FindPattern(Text, X1, Y1, X2, Y2, &CX, &CY, E1 := "", E0 := "") {
     return false
 }
 
-; 在当前桌面找一个图标：有记录时先在记录位置附近找（中心
-; ±60/±50），这样屏幕别处的误匹配就进不来；附近没找到，图标
-; 可能挪位置了（窗口移动、弹窗挡住），再全屏找一次；全屏也找
-; 不到才是真的没找到。没记录时直接全屏找。找到返回 true，
+; 在刚激活的游戏窗口里面找一个图标（全窗口找，不用记位置）：
+; 窗口挪位置、图标挪位置都能找到；窗口外面不找，屏幕别处的
+; 误匹配进不来。窗口位置没记下来时才全屏找。找到返回 true，
 ; OutX/OutY 是图标中心。
-FindIcon(Pattern, RecX, RecY, &OutX, &OutY, E1 := "", E0 := "") {
+FindIcon(Pattern, &OutX, &OutY, E1 := "", E0 := "") {
+    global GameWinX, GameWinY, GameWinW, GameWinH
     OutX := 0
     OutY := 0
-    if (RecX != 0) {
-        if (FindPattern(Pattern, RecX - 60, RecY - 50, RecX + 60, RecY + 50, &OutX, &OutY, E1, E0)) {
-            return true
-        }
-        return FindPattern(Pattern, 0, 0, A_ScreenWidth, A_ScreenHeight, &OutX, &OutY, E1, E0)
+    if (GameWinW > 0 && GameWinH > 0) {
+        return FindPattern(Pattern, GameWinX, GameWinY, GameWinX + GameWinW, GameWinY + GameWinH, &OutX, &OutY, E1, E0)
     }
     return FindPattern(Pattern, 0, 0, A_ScreenWidth, A_ScreenHeight, &OutX, &OutY, E1, E0)
 }
 
 ; 找放映机图标（Idx 是桌面序号，从 1 开始）。
 FindProjector(Idx, &OutX, &OutY) {
-    global ProjectorText, ProjectorTextOld, ProjErr1, ProjErr0, CalProjX, CalProjY
-    RX := (Idx >= 1 && Idx <= CalProjX.Length) ? CalProjX[Idx] : 0
-    RY := (Idx >= 1 && Idx <= CalProjY.Length) ? CalProjY[Idx] : 0
-    Found := FindIcon(ProjectorText, RX, RY, &OutX, &OutY, ProjErr1, ProjErr0)
+    global ProjectorText, ProjectorTextOld, ProjErr1, ProjErr0
+    Found := FindIcon(ProjectorText, &OutX, &OutY, ProjErr1, ProjErr0)
     if (Found) {
         LogFind("D" . Idx . " projector FOUND (" . OutX . "," . OutY . ")")
         return true
     }
-    Found := FindIcon(ProjectorTextOld, RX, RY, &OutX, &OutY, ProjErr1, ProjErr0)
+    Found := FindIcon(ProjectorTextOld, &OutX, &OutY, ProjErr1, ProjErr0)
     if (Found) {
         LogFind("D" . Idx . " projector (old size) FOUND (" . OutX . "," . OutY . ")")
     }
@@ -534,10 +464,8 @@ ClickStatusIcon(IconX, IconY) {
 ; （亮版底色浅蓝，暗版底色深紫）。图案认错的时候（比如暗版图标
 ; 顶上有亮边），亮度会把它拦下来，当没找到。
 FindBright(Idx, &OutX, &OutY) {
-    global BrightText, CalStatusX, CalStatusY
-    RX := (Idx >= 1 && Idx <= CalStatusX.Length) ? CalStatusX[Idx] : 0
-    RY := (Idx >= 1 && Idx <= CalStatusY.Length) ? CalStatusY[Idx] : 0
-    Found := FindIcon(BrightText, RX, RY, &OutX, &OutY)
+    global BrightText
+    Found := FindIcon(BrightText, &OutX, &OutY)
     if (!Found) {
         return false
     }
@@ -553,10 +481,8 @@ FindBright(Idx, &OutX, &OutY) {
 ; 再确认一次是真暗色（暗版底色深紫，亮版底色浅蓝）。图案认错
 ; 的时候，亮度会把它拦下来，当非暗色（亮色）。
 FindDark(Idx, &OutX, &OutY) {
-    global DarkText, CalStatusX, CalStatusY
-    RX := (Idx >= 1 && Idx <= CalStatusX.Length) ? CalStatusX[Idx] : 0
-    RY := (Idx >= 1 && Idx <= CalStatusY.Length) ? CalStatusY[Idx] : 0
-    Found := FindIcon(DarkText, RX, RY, &OutX, &OutY)
+    global DarkText
+    Found := FindIcon(DarkText, &OutX, &OutY)
     if (!Found) {
         return false
     }
@@ -573,14 +499,25 @@ FindDark(Idx, &OutX, &OutY) {
 ; 暗版图案都认不到对方（交叉验证过），所以图案本身就够了，不用再验亮度。
 ; 找到返回 true，OutX/OutY 是图标中心。未知图标不点，只按 G 和 X。
 FindUnknown(Idx, &OutX, &OutY) {
-    global UnknownText, CalStatusX, CalStatusY
-    RX := (Idx >= 1 && Idx <= CalStatusX.Length) ? CalStatusX[Idx] : 0
-    RY := (Idx >= 1 && Idx <= CalStatusY.Length) ? CalStatusY[Idx] : 0
-    Found := FindIcon(UnknownText, RX, RY, &OutX, &OutY)
+    global UnknownText
+    Found := FindIcon(UnknownText, &OutX, &OutY)
     if (Found) {
         LogFind("D" . Idx . " icon unknown FOUND (" . OutX . "," . OutY . ")")
     }
     return Found
+}
+
+; 记下刚激活的游戏窗口的位置和大小，后面找图标只在这个窗口里面找。
+SaveGameWinRect(hWnd) {
+    global GameWinX, GameWinY, GameWinW, GameWinH
+    try {
+        WinGetPos(&X, &Y, &W, &H, "ahk_id " hWnd)
+        GameWinX := X
+        GameWinY := Y
+        GameWinW := W
+        GameWinH := H
+    } catch {
+    }
 }
 
 ; 按窗口标题激活当前桌面上的游戏窗口：标题是 "Atlantica Online Fenix"，
@@ -606,6 +543,7 @@ ActivateGameByTitle() {
         if (OnCurrent) {
             try {
                 WinActivate("ahk_id " hWnd)
+                SaveGameWinRect(hWnd)
                 LogFind("activated game window by title, hwnd=" hWnd)
                 return true
             } catch {
@@ -651,6 +589,7 @@ ActivateGameWindow(IconX, IconY) {
         MouseGetPos(, , &WinID)
         if (WinID) {
             WinActivate("ahk_id " WinID)
+            SaveGameWinRect(WinID)
             LogFind("activated game window at (" IconX "," IconY ") hwnd=" WinID)
             return true
         }
@@ -660,19 +599,6 @@ ActivateGameWindow(IconX, IconY) {
 }
 
 
-; 检测进度，如 "D1 OK D2 OK D3 -- "。
-DetectSummary() {
-    global DesktopCount, CalOK
-    S := ""
-    Loop DesktopCount {
-        if (CalOK[A_Index]) {
-            S .= "D" . A_Index . " OK "
-        } else {
-            S .= "D" . A_Index . " -- "
-        }
-    }
-    return S
-}
 
 ; 轮询主循环：一个定时器驱动的状态机，每步做完再约下一步。
 ; 每轮：切桌面 -> 停 0.5 秒 -> 激活游戏窗口（先按标题找，找不到再用图标位置）
@@ -680,8 +606,7 @@ DetectSummary() {
 ; 激活失败才点 (212,57) -> 停 0.5 秒 -> 原地点一下 -> 等 1000 毫秒 -> 检查放映机图标和状态图标
 ; （放映机图标在、并且是非暗色，就只按 X、不按 G；其他情况
 ; 按 G，放映机图标在才在约 0.05 秒后按 X；放映机图标在、
-; 状态图标是暗色，才点状态图标）。检测阶段只记录位置和按
-; G/X，不点图标。
+; 状态图标是暗色，才点状态图标）。
 ; 切到指定桌面，并且等切换真正完成（当前桌面号变成目标桌面）再返回。
 ; 切桌面卡顿时，只等固定时间可能不够，后面的找图标会读到上一个桌面
 ; 的画面，坐标记错、点错地方。最多等 2 秒，超时也继续往下走。
@@ -713,9 +638,10 @@ GoToDesktopAndWait(DesktopNum) {
 }
 
 StepDesktop() {
-    global DesktopRunning, CyclePhase, CycleStart, DesktopPhase, DesktopNext, CurrentDesktop
+    global DesktopRunning, CyclePhase, DesktopPhase, DesktopNext, CurrentDesktop
     global DesktopCount, DesktopKey, KeyGapMs, GoToDesktopNumberProc, DesktopWaitMs, SwitchClickX, SwitchClickY
-    global DetectSeconds, txtDesktopStatus
+    global GameWinX, GameWinY, GameWinW, GameWinH
+    global txtDesktopStatus
     if (!DesktopRunning) {
         return
     }
@@ -727,24 +653,10 @@ StepDesktop() {
         SetTimer(StepDesktop, 250)
         return
     }
-    ; 先看检测阶段是否结束（15 秒到了就切到一直轮询）。
-    if (CheckPhaseEnd()) {
-        SetTimer(StepDesktop, 250)
-        return
-    }
-    ; 检测阶段：状态栏显示倒计时。
-    if (CyclePhase = "detect") {
-        Left := DetectSeconds * 1000 - (A_TickCount - CycleStart)
-        txtDesktopStatus.Text := "状态：检测 15 秒，剩余 " FormatMMSS(Left) "（记录图标位置）"
-    }
     if (DesktopPhase = "switch") {
         CurrentDesktop := DesktopNext
         GoToDesktopAndWait(CurrentDesktop)
         DesktopNext := Mod(DesktopNext + 1, DesktopCount)
-        if (CyclePhase = "detect") {
-            Left := DetectSeconds * 1000 - (A_TickCount - CycleStart)
-            ToolTip("Detect " FormatMMSS(Left) " left - Desktop " (CurrentDesktop + 1))
-        }
         DesktopPhase := "activate"
         SetTimer(StepDesktop, 500)   ; 切换后先停 0.5 秒
     } else if (DesktopPhase = "activate") {
@@ -753,6 +665,10 @@ StepDesktop() {
         ; 用 DLL 挑出当前桌面上的那一个），找不到再用图标位置找。
         ; 激活成功的话，左上角 (212,57) 那两下点击就没意义了（本来
         ; 就是为了聚焦窗口），直接去检查；激活失败才照旧用点击来聚焦。
+        ; 先把上个桌面的窗口位置清掉：激活失败时找图标就全屏找，
+        ; 不会拿着上个桌面的窗口位置去找这个桌面的图标。
+        GameWinW := 0
+        GameWinH := 0
         Activated := false
         if (ActivateGameByTitle()) {
             Activated := true
@@ -787,88 +703,10 @@ StepDesktop() {
         DesktopPhase := "check"
         SetTimer(StepDesktop, DesktopWaitMs)
     } else if (DesktopPhase = "check") {
-        if (CyclePhase = "detect") {
-            DetectStep()
-        } else {
-            MainCheckStep()
-        }
+        MainCheckStep()
     } else if (DesktopPhase = "pressX") {
         PressXStep()
     }
-}
-
-; 检测检查：每轮到一个桌面就找一次放映机图标和状态图标，
-; 找到就记下各自中心坐标，光标旁提示找到没有。这 15 秒
-; 只检测、不点图标；按 G 还是按 X 和轮询一样（放映机图标
-; 在、并且是非暗色就只按 X，其他情况按 G，放映机图标在才
-; 在约 0.05 秒后按 X）。
-DetectStep() {
-    global CurrentDesktop, DesktopPhase, DesktopWaitMs, txtDesktopStatus
-    global DesktopKey, DesktopKey2, KeyGapMs
-    global CalStatusX, CalStatusY, CalProjX, CalProjY, CalOK
-    global CycleStart, DetectSeconds
-    Idx := CurrentDesktop + 1
-    PX := 0
-    PY := 0
-    ProjFound := FindProjector(Idx, &PX, &PY)
-    if (ProjFound) {
-        CalProjX[Idx] := PX
-        CalProjY[Idx] := PY
-    }
-    DX := 0
-    DY := 0
-    DarkFound := FindDark(Idx, &DX, &DY)
-    UnknownFound := false
-    BrightFound := false
-    if (!DarkFound) {
-        UX := 0
-        UY := 0
-        UnknownFound := FindUnknown(Idx, &UX, &UY)
-        if (UnknownFound) {
-            CalStatusX[Idx] := UX
-            CalStatusY[Idx] := UY
-        }
-    }
-    State := ""
-    if (DarkFound) {
-        CalStatusX[Idx] := DX
-        CalStatusY[Idx] := DY
-        State := "dark"
-    } else if (UnknownFound) {
-        State := "unknown"
-    } else {
-        BX := 0
-        BY := 0
-        BrightFound := FindBright(Idx, &BX, &BY)
-        if (BrightFound) {
-            CalStatusX[Idx] := BX
-            CalStatusY[Idx] := BY
-            State := "non-dark"
-        } else {
-            State := "not found"
-        }
-    }
-    CalOK[Idx] := (CalStatusX[Idx] != 0)
-    StatusNotFound := (!DarkFound && !UnknownFound && !BrightFound)
-    ; 检测阶段也按轮询的规则按 G/X。放映机在 + 状态没找到时，也按 G、
-    ; 按 X、点一下记下的状态图标位置（有记下位置才点）。
-    if (ProjFound && !DarkFound && !UnknownFound && !StatusNotFound) {
-        Send(DesktopKey2)   ; 放映机图标在、并且是非暗色，只按 X、不按 G
-    } else {
-        Send(DesktopKey)    ; 其他情况按 G
-        if (ProjFound) {
-            Sleep(KeyGapMs)
-            Send(DesktopKey2)   ; 放映机图标在，约 0.05 秒后按 X
-        }
-        if (ProjFound && StatusNotFound && CalStatusX[Idx] != 0) {
-            ClickStatusIcon(CalStatusX[Idx], CalStatusY[Idx])
-        }
-    }
-    Left := DetectSeconds * 1000 - (A_TickCount - CycleStart)
-    ToolTip("Desktop " Idx ": projector " (ProjFound ? "yes" : "no") ", status " State)
-    txtDesktopStatus.Text := "状态：检测 15 秒，剩余 " FormatMMSS(Left) " - " DetectSummary()
-    DesktopPhase := "switch"
-    SetTimer(StepDesktop, DesktopWaitMs)
 }
 
 ; 轮询检查：每轮到一个桌面就先找放映机图标和状态图标，
@@ -884,50 +722,34 @@ DetectStep() {
 ;      状态图标位置（有记下位置才点）；放映机不在就只按 G。
 MainCheckStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey, DesktopKey2, KeyGapMs
-    global CalStatusX, CalStatusY, CalProjX, CalProjY, CheckProjFound, CheckStatusNotFound
+    global CheckProjFound, CheckStatusNotFound
     global NonDarkSince, NonDarkClickMs, CyclePhase
     Idx := CurrentDesktop + 1
     PX := 0
     PY := 0
     ProjFound := FindProjector(Idx, &PX, &PY)
     CheckProjFound := ProjFound
-    if (ProjFound) {
-        CalProjX[Idx] := PX
-        CalProjY[Idx] := PY
-    }
     DX := 0
     DY := 0
     DarkFound := FindDark(Idx, &DX, &DY)
     UnknownFound := false
     BrightFound := false
-    if (DarkFound) {
-        CalStatusX[Idx] := DX
-        CalStatusY[Idx] := DY
-    } else {
+    BX := 0
+    BY := 0
+    if (!DarkFound) {
         UX := 0
         UY := 0
         UnknownFound := FindUnknown(Idx, &UX, &UY)
-        if (UnknownFound) {
-            CalStatusX[Idx] := UX
-            CalStatusY[Idx] := UY
-        } else {
-            ; 非暗色也不是未知：顺便找一下亮版图案，把亮色图标的位置也记下来，
-            ; 下次找暗版时只在附近找，范围小、不容易认错别处。
-            BX := 0
-            BY := 0
+        if (!UnknownFound) {
+            ; 非暗色也不是未知：找一下亮版图案，确认是亮色。
             BrightFound := FindBright(Idx, &BX, &BY)
-            if (BrightFound) {
-                CalStatusX[Idx] := BX
-                CalStatusY[Idx] := BY
-            }
         }
     }
     CheckStatusNotFound := (!DarkFound && !UnknownFound && !BrightFound)
     ; 连续非暗色计时：亮色确认了就开始计时，暗色/未知/没找到就清零。
-    ; 主轮询里连续非暗色超过 20 分钟，就点一下状态图标（怕是误判，
+    ; 连续非暗色超过 20 分钟，就点一下本次找到的亮色图标位置（怕是误判，
     ; 实际是暗色却认成了亮色）；点完重新计时。
-    ; 注意：NonDarkSince 一开始是空的，主轮询第一个到的桌面不一定是桌面 1
-    ; （检测阶段结束在哪，下一个就是哪），直接按下标写会下标越界报错，
+    ; 注意：NonDarkSince 一开始是空的，直接按下标写会下标越界报错，
     ; 所以先把它补到够长。
     while (NonDarkSince.Length < Idx) {
         NonDarkSince.Push(0)
@@ -937,11 +759,9 @@ MainCheckStep() {
         if (Since = 0) {
             NonDarkSince[Idx] := A_TickCount
         } else if (CyclePhase = "main" && A_TickCount - Since >= NonDarkClickMs) {
-            if (CalStatusX[Idx] != 0) {
-                ClickStatusIcon(CalStatusX[Idx], CalStatusY[Idx])
-                LogFind("D" Idx " non-dark for 20+ min, clicked status icon to check (possible misjudge)")
-                ToolTip("Desktop " Idx ": non-dark 20+ min, clicked icon to check")
-            }
+            ClickStatusIcon(BX, BY)
+            LogFind("D" Idx " non-dark for 20+ min, clicked status icon to check (possible misjudge)")
+            ToolTip("Desktop " Idx ": non-dark 20+ min, clicked icon to check")
             NonDarkSince[Idx] := 0
         }
     } else {
@@ -963,13 +783,13 @@ MainCheckStep() {
 
 ; 按 X 和点图标（轮询检查的下一步，约 0.05 秒后）。
 ; 放映机图标在才按 X；放映机图标在、并且是暗色，才点
-; 状态图标一下，未知图标不点；状态没找到时点一下记下的
-; 状态图标位置。这里找暗版图案是再确认一次：按完 G 之后
-; 如果图标已经变亮了（非暗色），暗版图案就找不到了，
-; 也就不会点错；未知图标也不会被暗版图案认到，所以不会点错。
+; 状态图标一下，未知图标不点；状态没找到不点（全窗口都
+; 找过了，没有可靠位置可点）。这里找暗版图案是再确认一次：
+; 按完 G 之后如果图标已经变亮了（非暗色），暗版图案就找
+; 不到了，也就不会点错；未知图标也不会被暗版图案认到，
+; 所以不会点错。
 PressXStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey2, CheckProjFound, CheckStatusNotFound
-    global CalStatusX, CalStatusY
     Idx := CurrentDesktop + 1
     if (!CheckProjFound) {
         ; 放映机图标不在：不按 X、不点（只按了 G）。
@@ -981,19 +801,10 @@ PressXStep() {
     Send(DesktopKey2)   ; 放映机图标在，才按 X
     ; 到这里是暗色、未知或状态没找到（非暗色的话检查步已经只按 X、直接回去了）。
     if (CheckStatusNotFound) {
-        ; 状态没找到：点一下记下的状态图标位置（有记下位置才点）。
-        if (CalStatusX[Idx] != 0) {
-            if (IconBright(CalStatusX[Idx], CalStatusY[Idx])) {
-                LogFind("D" Idx " status not found, recorded pos is bright, no click")
-                ToolTip("Desktop " Idx ": projector yes, status not found, recorded pos is bright, no click")
-            } else {
-                LogFind("D" Idx " status not found, recorded pos is dark, click recorded pos (" CalStatusX[Idx] "," CalStatusY[Idx] ")")
-                ClickStatusIcon(CalStatusX[Idx], CalStatusY[Idx])
-                ToolTip("Desktop " Idx ": projector yes, status not found, clicked recorded pos")
-            }
-        } else {
-            ToolTip("Desktop " Idx ": projector yes, status not found, no recorded pos, no click")
-        }
+        ; 状态没找到：全窗口都找过了，图标确实不在（被弹窗挡住或者界面变了），
+        ; 没有可靠位置可点，就不点。
+        LogFind("D" Idx " status not found in window, no click")
+        ToolTip("Desktop " Idx ": projector yes, status not found, no click")
         DesktopPhase := "switch"
         SetTimer(StepDesktop, DesktopWaitMs)
         return
@@ -1003,8 +814,6 @@ PressXStep() {
     DX := 0
     DY := 0
     if (FindDark(Idx, &DX, &DY)) {
-        CalStatusX[Idx] := DX
-        CalStatusY[Idx] := DY
         ClickStatusIcon(DX, DY)
         ToolTip("Desktop " Idx ": projector yes, dark, clicked to bright")
     } else {
@@ -1012,8 +821,6 @@ PressXStep() {
         UX := 0
         UY := 0
         if (FindUnknown(Idx, &UX, &UY)) {
-            CalStatusX[Idx] := UX
-            CalStatusY[Idx] := UY
             ToolTip("Desktop " Idx ": projector yes, unknown, no click")
         } else {
             ToolTip("Desktop " Idx ": projector yes, not dark, no click")
@@ -1232,8 +1039,7 @@ ToggleClickHotkey(*) {
     }
 }
 
-; F8 = 手动暂停 / 继续（轮询和开箱子都停，再按一次继续，
-; 检测计时跟着停）。
+; F8 = 手动暂停 / 继续（轮询和开箱子都停，再按一次继续）。
 ToggleManualPause(*) {
     global ManualPaused
     ManualPaused := !ManualPaused
@@ -1482,7 +1288,7 @@ PlayRecording(*) {
 
 ; ===== 快捷键 =====
 ; F8  = 手动暂停 / 继续
-; F11 = 桌面轮询 开启 / 停止（再启动会从检测重新开始）
+; F11 = 桌面轮询 开启 / 停止（再启动从桌面 1 重新开始）
 ; F12 = 开箱子 开启 / 暂停
 ; F9  = 统一暂停（全部停止，不退出程序，窗口还在，可再启动）
 F8::ToggleManualPause()
