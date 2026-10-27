@@ -132,7 +132,6 @@ RecordLastTick := 0       ; 上一个录下来的动作是什么时候（A_TickC
 RecordLastL := false      ; 上次轮询时左键是不是按着
 RecordLastR := false      ; 上次轮询时右键是不是按着
 PlayingBack := false      ; 是不是正在回放
-ReplayCountInput := ""    ; 小键盘输的回放次数（按 F4 之前输，比如 4、20；空就是默认 1 次）
 ; 刚激活的游戏窗口的位置和大小，找图标只在这个窗口里面找。
 GameWinX := 0
 GameWinY := 0
@@ -1206,13 +1205,12 @@ ToggleQuickSwitch(*) {
 
 StopQuickSwitch(*) {
     global QuickSwitchEnabled, btnQuickStart, btnQuickStop
-    global Recording, PlayingBack, ReplayCountInput, txtQuickStatus
+    global Recording, PlayingBack, txtQuickStatus
     WasOn := QuickSwitchEnabled
     SetTimer(AlignGameWindows, 0)
     SetTimer(RecordPoll, 0)
     Recording := false
     PlayingBack := false
-    ReplayCountInput := 
     QuickSwitchEnabled := false
     btnQuickStart.Enabled := true
     btnQuickStop.Enabled := false
@@ -1234,9 +1232,9 @@ ClearToolTip() {
 
 ; ===== 录鼠标 / 回放（快捷切换开着的时候才能用）=====
 ; 只录鼠标，不录键盘。录的是每次点下/松开左键/右键的位置和间隔。
-; 回放按 F4：不输数字默认回放 1 次；先按小键盘数字再按 F4 就回放那么多次
-; （比如小键盘 4 再按 F4 是 4 次，小键盘 2、0 再按 F4 是 20 次；小键盘 . 清掉已输的数字）。
-; 每遍开始时光标旁边显示「回放 k/N」。回放中再按 F4 就停掉（F5 也能停）。
+; 回放按 F4：点一下回放 1 次；按住 F4 大约 2 秒是无限回放，
+; 按住 2 秒后先显示「无限回放」提示，1 秒后开始循环回放，再按 F4 停掉。
+; 每遍开始时光标旁边显示统计（回放 1 次显示「回放 1/1」，无限显示「无限回放 第 k 次」）。
 RecordPoll() {
     global Recording, RecordEvents, RecordLastTick, RecordLastL, RecordLastR, txtQuickStatus
     if (!Recording) {
@@ -1270,7 +1268,7 @@ RecordPoll() {
 
 ; 5 键：回放中按一下停回放；不回放时按一下开始/停止录制。
 ToggleRecord(*) {
-    global Recording, RecordEvents, RecordLastTick, RecordLastL, RecordLastR, PlayingBack, ReplayCountInput, txtQuickStatus
+    global Recording, RecordEvents, RecordLastTick, RecordLastL, RecordLastR, PlayingBack, txtQuickStatus
     if (PlayingBack) {
         PlayingBack := false
         ShowTempToolTip("回放已停止")
@@ -1283,7 +1281,6 @@ ToggleRecord(*) {
         ShowTempToolTip("已录制 " RecordEvents.Length " 个动作，按 F4 回放")
     } else {
         RecordEvents := []
-        ReplayCountInput := ""
         RecordLastTick := A_TickCount
         RecordLastL := GetKeyState("LButton", "P")
         RecordLastR := GetKeyState("RButton", "P")
@@ -1294,35 +1291,16 @@ ToggleRecord(*) {
     }
 }
 
-; 小键盘数字键：输回放次数（快捷切换开着时才生效）。
-; 按小键盘 4 再按 F4 就是回放 4 次，按 2、0 再按 F4 就是回放 20 次。
-; 不输数字直接按 F4 默认回放 1 次。最多输 3 位（1-999）。
-TypeReplayCount(Digit) {
-    global ReplayCountInput
-    if (StrLen(ReplayCountInput) >= 3) {
-        return
-    }
-    ReplayCountInput .= Digit
-    ShowTempToolTip("回放次数：" ReplayCountInput)
-}
-
-; 小键盘 . 键：清掉已输的回放次数，重新输。
-ClearReplayCount(*) {
-    global ReplayCountInput
-    ReplayCountInput := ""
-    ShowTempToolTip("回放次数已清除")
-}
-
-; F4：把录下来的鼠标动作执行 N 遍。N 是按 F4 之前用小键盘输的数字
-; （比如小键盘 4 再按 F4 就是 4 遍，小键盘 2、0 再按 F4 就是 20 遍），
-; 不输数字默认 1 遍。每遍开始时光标旁边显示「回放 k/N」。
-; 回放中再按 F4 就停掉（F5 也能停）。
-PlayRecording(*) {
-    global Recording, RecordEvents, PlayingBack, ReplayCountInput, txtQuickStatus
+; F4：点一下回放 1 次；按住大约 2 秒是无限回放。
+; 按住 2 秒后先显示「无限回放」提示，1 秒后开始循环回放，
+; 再按 F4 停掉（F5 也能停）。
+F4Handler(*) {
+    global Recording, RecordEvents, PlayingBack, txtQuickStatus
     if (Recording) {
         return
     }
     if (PlayingBack) {
+        ; 正在回放，按 F4 就停掉（点一下还是按住都一样，立刻停）
         PlayingBack := false
         ToolTip()
         txtQuickStatus.Text := "状态：已录制 " RecordEvents.Length " 个动作，按 F4 回放"
@@ -1333,26 +1311,45 @@ PlayRecording(*) {
         ShowTempToolTip("没有录制内容，先按 F5 录一段")
         return
     }
-    Count := 1
-    if (ReplayCountInput != "") {
-        Count := Integer(ReplayCountInput)
-        if (Count < 1) {
-            Count := 1
-        } else if (Count > 999) {
-            Count := 999
-        }
+    ; 等 F4 松开，最多等 2 秒：2 秒内松开是点一下，超过 2 秒是按住。
+    Released := KeyWait("F4", "T2")
+    if (Released) {
+        PlayRecording(1)
+    } else {
+        ShowTempToolTip("无限回放")
+        Sleep(1000)
+        PlayRecording(0)
     }
-    ReplayCountInput := ""
+}
+
+; 把录下来的鼠标动作执行 Count 遍（Count=0 是无限次，直到再按 F4 停掉）。
+; 间隔按录的时候一样（最长 30 秒）。
+; 有限次时每遍开始显示「回放 k/N」，无限时显示「无限回放 第 k 次」。
+PlayRecording(Count) {
+    global RecordEvents, PlayingBack, txtQuickStatus
+    if (PlayingBack) {
+        return
+    }
     PlayingBack := true
     FinishedAll := true
-    Loop Count {
-        Round := A_Index
+    Round := 0
+    Loop {
+        Round++
+        if (Count > 0 && Round > Count) {
+            break
+        }
         if (!PlayingBack) {
             FinishedAll := false
             break
         }
-        txtQuickStatus.Text := "状态：正在回放 " Round "/" Count "…按 F4 停止"
-        ToolTip("回放 " Round "/" Count)
+        if (Count > 0) {
+            CountText := Round "/" Count
+            ToolTip("回放 " CountText)
+            txtQuickStatus.Text := "状态：正在回放 " CountText "…按 F4 停止"
+        } else {
+            ToolTip("无限回放 第 " Round " 次")
+            txtQuickStatus.Text := "状态：无限回放 第 " Round " 次…按 F4 停止"
+        }
         for Ev in RecordEvents {
             if (!PlayingBack) {
                 FinishedAll := false
@@ -1408,19 +1405,6 @@ SC029::ToggleQuickSwitch()
 F1::GoToDesktop(0)
 F2::GoToDesktop(1)
 F3::GoToDesktop(2)
-F4::PlayRecording()
+F4::F4Handler()
 F5::ToggleRecord()
-; 小键盘数字：输回放次数（按 F4 之前输，比如 4、20；不输默认 1 次）。
-; 小键盘 .：清掉已输的次数，重新输。只在快捷切换开着时生效。
-Numpad0::TypeReplayCount("0")
-Numpad1::TypeReplayCount("1")
-Numpad2::TypeReplayCount("2")
-Numpad3::TypeReplayCount("3")
-Numpad4::TypeReplayCount("4")
-Numpad5::TypeReplayCount("5")
-Numpad6::TypeReplayCount("6")
-Numpad7::TypeReplayCount("7")
-Numpad8::TypeReplayCount("8")
-Numpad9::TypeReplayCount("9")
-NumpadDot::ClearReplayCount()
 #HotIf
