@@ -1316,7 +1316,7 @@ F4Handler(*) {
     if (Released) {
         PlayRecording(1)
     } else {
-        ShowTempToolTip("无限回放")
+        ToolTip("无限回放")
         Sleep(1000)
         PlayRecording(0)
     }
