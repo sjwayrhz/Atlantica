@@ -813,6 +813,13 @@ MainCheckStep() {
     } else {
         NonDarkSince[Idx] := 0
     }
+    ; 暗色 + 放映机在：发现就马上点（按 G 之前点，点的是这次刚找到的位置；
+    ; 按 G 可能过图，等 0.05 秒后再点位置就变了）。
+    if (ProjFound && DarkFound) {
+        ClickStatusIcon(DX, DY)
+        LogFind("D" Idx " dark found, clicked immediately")
+        ToolTip("Desktop " Idx ": projector yes, dark, clicked immediately")
+    }
     if (ProjFound && !DarkFound && !UnknownFound && !CheckStatusNotFound) {
         ; 放映机图标在、并且是非暗色（亮色）：只按 X，不按 G，不点。
         Send(DesktopKey2)
@@ -827,51 +834,21 @@ MainCheckStep() {
     SetTimer(StepDesktop, KeyGapMs)
 }
 
-; 按 X 和点图标（轮询检查的下一步，约 0.05 秒后）。
-; 放映机图标在才按 X；放映机图标在、并且是暗色，才点
-; 状态图标一下，未知图标不点；状态没找到不点（全窗口都
-; 找过了，没有可靠位置可点）。这里找暗版图案是再确认一次：
-; 按完 G 之后如果图标已经变亮了（非暗色），暗版图案就找
-; 不到了，也就不会点错；未知图标也不会被暗版图案认到，
-; 所以不会点错。
+; 按 X（轮询检查的下一步，约 0.05 秒后）。
+; 放映机图标在才按 X。暗色已经在检查步发现就马上点过了，
+; 这里不再点；未知和状态没找到都不点。
 PressXStep() {
-    global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey2, CheckProjFound, CheckStatusNotFound
+    global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey2, CheckProjFound
     Idx := CurrentDesktop + 1
     if (!CheckProjFound) {
-        ; 放映机图标不在：不按 X、不点（只按了 G）。
-        ToolTip("Desktop " Idx ": projector no, no X, no click")
+        ; 放映机图标不在：不按 X（只按了 G）。
+        ToolTip("Desktop " Idx ": projector no, no X")
         DesktopPhase := "switch"
         SetTimer(StepDesktop, DesktopWaitMs)
         return
     }
     Send(DesktopKey2)   ; 放映机图标在，才按 X
-    ; 到这里是暗色、未知或状态没找到（非暗色的话检查步已经只按 X、直接回去了）。
-    if (CheckStatusNotFound) {
-        ; 状态没找到：全窗口都找过了，图标确实不在（被弹窗挡住或者界面变了），
-        ; 没有可靠位置可点，就不点。
-        LogFind("D" Idx " status not found in window, no click")
-        ToolTip("Desktop " Idx ": projector yes, status not found, no click")
-        DesktopPhase := "switch"
-        SetTimer(StepDesktop, DesktopWaitMs)
-        return
-    }
-    ; 再找暗版图案确认一次：按完 G 之后如果图标已经变亮了，
-    ; 暗版图案就找不到了，也就不会点错；未知图标不点。
-    DX := 0
-    DY := 0
-    if (FindDark(Idx, &DX, &DY)) {
-        ClickStatusIcon(DX, DY)
-        ToolTip("Desktop " Idx ": projector yes, dark, clicked to bright")
-    } else {
-        ; 暗版没找到：再看是不是未知（未知不点）；都不是就是按完 G 变亮了，也不点。
-        UX := 0
-        UY := 0
-        if (FindUnknown(Idx, &UX, &UY)) {
-            ToolTip("Desktop " Idx ": projector yes, unknown, no click")
-        } else {
-            ToolTip("Desktop " Idx ": projector yes, not dark, no click")
-        }
-    }
+    ToolTip("Desktop " Idx ": projector yes, X pressed")
     DesktopPhase := "switch"
     SetTimer(StepDesktop, DesktopWaitMs)
 }
