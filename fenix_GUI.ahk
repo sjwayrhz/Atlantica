@@ -1298,7 +1298,8 @@ StartQuickSwitch(*) {
     SetTimer(AlignGameWindows, -2000)
 }
 
-; ` 键（飘号键，左上角 1 左边那个）：快捷切换的启动 / 停止开关（全局热键，不受开关状态限制）。
+; SC029 = ` 键（飘号键，左上角 1 左边那个）：快捷切换的启动 / 停止开关（全局热键，不受开关状态限制）。
+; （AHK v2 里反引号是转义字符，不能直接写 ``:: 做热键，要用扫描码 SC029。）
 ToggleQuickSwitch(*) {
     global QuickSwitchEnabled
     if (QuickSwitchEnabled) {
@@ -1443,7 +1444,7 @@ F8::ToggleManualPause()
 F11::ToggleDesktop()
 F12::ToggleClickHotkey()
 F9::StopAll()
-``::ToggleQuickSwitch()
+SC029::ToggleQuickSwitch()
 
 ; 快捷切换桌面的键盘：只在开关打开时生效（默认关），
 ; 关了按 1/2/3 就是正常打字，不会切桌面。
