@@ -1033,11 +1033,12 @@ StopAll(*) {
 ; ===== 保存配置 =====
 ; 保存的是开箱子界面里当前填的值（不是正在运行的那份旧值），
 ; 存到脚本同目录的 fenix_Config.ini，下次打开自动恢复。
-; 桌面轮询的参数不用界面填了（用配置文件里的值，没保存过
-; 就用默认值），所以保存配置不再写桌面轮询那几项。
-; 正在运行时点保存也不会停掉正在跑的功能。
+; 桌面轮询的参数不用界面填，但保存时也把启动时读到的那份
+; 一起写进去，这样 ini 里总有一份完整的 [Desktop]，下次
+; 打开照样用。正在运行时点保存也不会停掉正在跑的功能。
 SaveConfig(*) {
     global ConfigFile
+    global CfgDesktopWait, CfgDesktopKey, CfgSwitchX, CfgSwitchY
     global edtP1X, edtP1Y, edtP2X, edtP2Y, edtWait1, edtWait2, edtRightX, edtRightY, edtRightInterval
     for ctrl in [edtP1X, edtP1Y, edtP2X, edtP2Y, edtWait1, edtWait2, edtRightX, edtRightY, edtRightInterval] {
         if (!IsNumber(ctrl.Value)) {
@@ -1054,6 +1055,10 @@ SaveConfig(*) {
     IniWrite(edtRightX.Value, ConfigFile, "Click", "RightX")
     IniWrite(edtRightY.Value, ConfigFile, "Click", "RightY")
     IniWrite(edtRightInterval.Value, ConfigFile, "Click", "RightInterval")
+    IniWrite(CfgDesktopWait, ConfigFile, "Desktop", "WaitMs")
+    IniWrite(CfgDesktopKey, ConfigFile, "Desktop", "Key")
+    IniWrite(CfgSwitchX, ConfigFile, "Desktop", "SwitchX")
+    IniWrite(CfgSwitchY, ConfigFile, "Desktop", "SwitchY")
     MsgBox("配置已保存到：`n" ConfigFile "`n下次打开脚本会自动恢复这些坐标和间隔。")
 }
 
