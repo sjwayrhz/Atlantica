@@ -121,6 +121,7 @@ CycleCount := 0
 CurrentDesktop := 0
 DetectSeconds := 15     ; 开头检测多少秒
 ManualPaused := false   ; F8 手动暂停的开关
+QuickSwitchEnabled := false ; 快捷切换桌面（键盘 1/2/3）的开关，默认关
 PauseStartTick := 0     ; 本次暂停开始的时间，0 表示没在暂停
 ; 检测时记下的图标中心坐标（下标从 1 开始，对应桌面 1、2、3……）
 ; 0 表示该桌面还没找到这个点。
@@ -237,14 +238,25 @@ btnSynth := MyGui.Add("Button", "x270 y240 w100 h30", "合成")
 btnSynth.OnEvent("Click", ToggleSynth)
 txtClickStatus := MyGui.Add("Text", "x10 y275 w360", "状态：未运行")
 
+; ---- 3. 快捷切换桌面 ----
+MyGui.Add("Text", "x10 y305 w360", "3. 快捷切换桌面")
+btnDesk1 := MyGui.Add("Button", "x10 y330 w110 h30", "桌面 1")
+btnDesk1.OnEvent("Click", (*) => GoToDesktop(0))
+btnDesk2 := MyGui.Add("Button", "x135 y330 w110 h30", "桌面 2")
+btnDesk2.OnEvent("Click", (*) => GoToDesktop(1))
+btnDesk3 := MyGui.Add("Button", "x260 y330 w110 h30", "桌面 3")
+btnDesk3.OnEvent("Click", (*) => GoToDesktop(2))
+btnQuickSwitch := MyGui.Add("Button", "x10 y365 w360 h30", "快捷键：关")
+btnQuickSwitch.OnEvent("Click", ToggleQuickSwitch)
+
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y305 w115 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y405 w115 h30", "全部停止")
 btnStopAll.OnEvent("Click", StopAll)
-btnSaveConfig := MyGui.Add("Button", "x132 y305 w115 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x132 y405 w115 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", SaveConfig)
-btnExit := MyGui.Add("Button", "x254 y305 w115 h30", "退出")
+btnExit := MyGui.Add("Button", "x254 y405 w115 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
-MyGui.Add("Text", "x10 y345 w360 h50", "提示：F11 桌面轮询（先检测 15 秒，再一直轮询；放映机图标在才按 X、暗色才点状态图标、未知图标不点），F12 开箱子，F9 全部停止（不退出）。F8 手动暂停/继续。功能 1 需要同目录下的 VirtualDesktopAccessor.dll 和 FindText.ahk，DLL 版本须匹配 Windows。")
+MyGui.Add("Text", "x10 y445 w360 h50", "提示：F11 桌面轮询（先检测 15 秒，再一直轮询；放映机图标在才按 X、暗色才点状态图标、未知图标不点），F12 开箱子，F9 全部停止（不退出）。F8 手动暂停/继续。快捷切换：点按钮切到桌面 1/2/3，打开快捷键后按键盘 1/2/3（上面那排，右边数字键盘不算）也能切。功能 1 需要同目录下的 VirtualDesktopAccessor.dll 和 FindText.ahk，DLL 版本须匹配 Windows。")
 MyGui.OnEvent("Close", (*) => ExitApp())
 
 ; DLL 没加载成功时，禁用功能 1，不影响功能 2
@@ -253,7 +265,7 @@ if (DesktopCount < 1) {
     txtDesktopStatus.Text := "状态：不可用（DLL 加载失败，请检查同目录的 VirtualDesktopAccessor.dll）"
 }
 
-MyGui.Show("w380 h400")
+MyGui.Show("w380 h500")
 
 ; ===== 功能 1：桌面轮询 =====
 ; F11 或点按钮启动：先检测 15 秒（轮询按 G，记录放映机图标
@@ -1174,6 +1186,27 @@ UpdatePauseButton() {
     }
 }
 
+; ===== 快捷切换桌面 =====
+; 点按钮或按键盘 1/2/3（上面那排，右边数字键盘不算）切到对应桌面。
+; 桌面号从 0 开始（桌面 1 = 0）。DLL 没加载成功时切不了。
+GoToDesktop(DesktopNum) {
+    global GoToDesktopNumberProc, DesktopCount
+    if (!GoToDesktopNumberProc || DesktopNum < 0 || DesktopNum >= DesktopCount) {
+        return
+    }
+    try {
+        DllCall(GoToDesktopNumberProc, "Int", DesktopNum)
+    } catch {
+    }
+}
+
+; 快捷键开关：开/关键盘 1/2/3 切桌面。按钮一直能点，不受开关影响。
+ToggleQuickSwitch(*) {
+    global QuickSwitchEnabled, btnQuickSwitch
+    QuickSwitchEnabled := !QuickSwitchEnabled
+    btnQuickSwitch.Text := QuickSwitchEnabled ? "快捷键：开" : "快捷键：关"
+}
+
 ; ===== 快捷键 =====
 ; F8  = 手动暂停 / 继续
 ; F11 = 桌面轮询 开启 / 停止（再启动会从检测重新开始）
@@ -1183,3 +1216,12 @@ F8::ToggleManualPause()
 F11::ToggleDesktop()
 F12::ToggleClickHotkey()
 F9::StopAll()
+
+; 快捷切换桌面的键盘：只在开关打开时生效（默认关），
+; 关了按 1/2/3 就是正常打字，不会切桌面。
+; 这里的 1/2/3 是上面那排数字键，右边数字键盘（Numpad1/2/3）不算。
+#HotIf QuickSwitchEnabled
+1::GoToDesktop(0)
+2::GoToDesktop(1)
+3::GoToDesktop(2)
+#HotIf
