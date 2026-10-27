@@ -618,8 +618,9 @@ DetectSummary() {
 }
 
 ; 轮询主循环：一个定时器驱动的状态机，每步做完再约下一步。
-; 每轮：切桌面 -> 停 0.5 秒 -> 激活游戏窗口（先按标题找，找不到再用图标位置） -> 点 (212,57) -> 停 0.5 秒
-; -> 原地点一下 -> 等 1000 毫秒 -> 检查放映机图标和状态图标
+; 每轮：切桌面 -> 停 0.5 秒 -> 激活游戏窗口（先按标题找，找不到再用图标位置）
+; 激活成功就直接去检查（左上角那两下点击本来就是为了聚焦，激活成功就没意义了）；
+; 激活失败才点 (212,57) -> 停 0.5 秒 -> 原地点一下 -> 等 1000 毫秒 -> 检查放映机图标和状态图标
 ; （放映机图标在、并且是非暗色，就只按 X、不按 G；其他情况
 ; 按 G，放映机图标在才在约 0.05 秒后按 X；放映机图标在、
 ; 状态图标是暗色，才点状态图标）。检测阶段只记录位置和按
@@ -660,22 +661,33 @@ StepDesktop() {
         DesktopPhase := "activate"
         SetTimer(StepDesktop, 500)   ; 切换后先停 0.5 秒
     } else if (DesktopPhase = "activate") {
-        ; 切完桌面先激活游戏窗口，这样后面的点击和按 G/X 才进游戏，
+        ; 切完桌面先激活游戏窗口，这样后面的按 G/X 才进游戏，
         ; 不用再手动点窗口。先按标题找（每个桌面只有一个游戏窗口，
-        ; 用 DLL 挑出当前桌面上的那一个），找不到再用图标位置找；
-        ; 两个都找不到就跳过，照旧用点击来聚焦。
-        if (!ActivateGameByTitle()) {
+        ; 用 DLL 挑出当前桌面上的那一个），找不到再用图标位置找。
+        ; 激活成功的话，左上角 (212,57) 那两下点击就没意义了（本来
+        ; 就是为了聚焦窗口），直接去检查；激活失败才照旧用点击来聚焦。
+        Activated := false
+        if (ActivateGameByTitle()) {
+            Activated := true
+        } else {
             Idx := CurrentDesktop + 1
             IX := 0
             IY := 0
             if (FindGameIcon(Idx, &IX, &IY)) {
-                ActivateGameWindow(IX, IY)
+                if (ActivateGameWindow(IX, IY)) {
+                    Activated := true
+                }
             } else {
                 LogFind("D" Idx " activate: no window found by title or icon, skip activation")
             }
         }
-        DesktopPhase := "click212"
-        SetTimer(StepDesktop, 100)   ; 激活后稍停一下再点
+        if (Activated) {
+            DesktopPhase := "check"
+            SetTimer(StepDesktop, DesktopWaitMs)
+        } else {
+            DesktopPhase := "click212"
+            SetTimer(StepDesktop, 100)   ; 激活失败，稍停一下再点
+        }
     } else if (DesktopPhase = "click212") {
         Click(SwitchClickX, SwitchClickY)
         DesktopPhase := "click"
