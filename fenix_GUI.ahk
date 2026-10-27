@@ -474,6 +474,17 @@ IconBright(CX, CY) {
     return (Frac > 0.5)
 }
 
+; 点状态图标：点一下，然后模拟人工操作，在图标内部小范围移动鼠标 0.5 秒，
+; 再把鼠标移到屏幕中上方，免得鼠标挡住图标、影响下次识别。
+ClickStatusIcon(IconX, IconY) {
+    Click(IconX, IconY)
+    Loop 5 {
+        MouseMove(IconX + Random(-18, 18), IconY + Random(-14, 14), 0)
+        Sleep(100)
+    }
+    MouseMove(A_ScreenWidth // 2, 200, 5)
+}
+
 ; 找亮版状态图标（只用来定位亮色图标的位置、记下坐标，不参与
 ; 亮暗判断）：找到亮版图案，还要用背景亮度再确认一次是真亮色
 ; （亮版底色浅蓝，暗版底色深紫）。图案认错的时候（比如暗版图标
@@ -773,7 +784,7 @@ DetectStep() {
             Send(DesktopKey2)   ; 放映机图标在，约 0.05 秒后按 X
         }
         if (ProjFound && StatusNotFound && CalStatusX[Idx] != 0) {
-            Click(CalStatusX[Idx], CalStatusY[Idx])
+            ClickStatusIcon(CalStatusX[Idx], CalStatusY[Idx])
         }
     }
     Left := DetectSeconds * 1000 - (A_TickCount - CycleStart)
@@ -850,7 +861,7 @@ MainCheckStep() {
             NonDarkSince[Idx] := A_TickCount
         } else if (CyclePhase = "main" && A_TickCount - Since >= NonDarkClickMs) {
             if (CalStatusX[Idx] != 0) {
-                Click(CalStatusX[Idx], CalStatusY[Idx])
+                ClickStatusIcon(CalStatusX[Idx], CalStatusY[Idx])
                 LogFind("D" Idx " non-dark for 20+ min, clicked status icon to check (possible misjudge)")
                 ToolTip("Desktop " Idx ": non-dark 20+ min, clicked icon to check")
             }
@@ -898,7 +909,7 @@ PressXStep() {
             if (IconBright(CalStatusX[Idx], CalStatusY[Idx])) {
                 ToolTip("Desktop " Idx ": projector yes, status not found, recorded pos is bright, no click")
             } else {
-                Click(CalStatusX[Idx], CalStatusY[Idx])
+                ClickStatusIcon(CalStatusX[Idx], CalStatusY[Idx])
                 ToolTip("Desktop " Idx ": projector yes, status not found, clicked recorded pos")
             }
         } else {
@@ -915,7 +926,7 @@ PressXStep() {
     if (FindDark(Idx, &DX, &DY)) {
         CalStatusX[Idx] := DX
         CalStatusY[Idx] := DY
-        Click(DX, DY)
+        ClickStatusIcon(DX, DY)
         ToolTip("Desktop " Idx ": projector yes, dark, clicked to bright")
     } else {
         ; 暗版没找到：再看是不是未知（未知不点）；都不是就是按完 G 变亮了，也不点。
