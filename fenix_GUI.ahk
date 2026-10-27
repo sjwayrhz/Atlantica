@@ -1294,13 +1294,32 @@ AlignGameWindows() {
 ; ===== 快捷切换桌面 =====
 ; 点按钮或按键盘 F1/F2/F3 切到对应桌面。
 ; 桌面号从 0 开始（桌面 1 = 0）。DLL 没加载成功时切不了。
+; F1/F2/F3 切桌面：切过去后自动激活（点选）那个桌面上的游戏窗口，
+; 不用再手动点一下。先等切换真正完成，再按标题找（每个桌面只有一个
+; 游戏窗口，用 DLL 挑出当前桌面上的那一个），找不到再用图标位置找；
+; 都找不到就点一下 (212,57) 来聚焦（和轮询的激活失败后一样）。
 GoToDesktop(DesktopNum) {
-    global GoToDesktopNumberProc, DesktopCount
+    global GoToDesktopNumberProc, DesktopCount, GameWinW, GameWinH, SwitchClickX, SwitchClickY
     if (!GoToDesktopNumberProc || DesktopNum < 0 || DesktopNum >= DesktopCount) {
         return
     }
+    GoToDesktopAndWait(DesktopNum)
+    GameWinW := 0
+    GameWinH := 0
+    if (ActivateGameByTitle()) {
+        return
+    }
+    Idx := DesktopNum + 1
+    IX := 0
+    IY := 0
+    if (FindGameIcon(Idx, &IX, &IY)) {
+        if (ActivateGameWindow(IX, IY)) {
+            return
+        }
+    }
+    ; 标题和图标都找不到，点一下来聚焦。
     try {
-        DllCall(GoToDesktopNumberProc, "Int", DesktopNum)
+        Click(SwitchClickX, SwitchClickY)
     } catch {
     }
 }
