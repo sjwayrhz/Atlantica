@@ -478,7 +478,8 @@ IconBright(CX, CY) {
 }
 
 ; 点状态图标：点一下，然后模拟人工操作，在图标内部小范围移动鼠标 0.5 秒，
-; 再把鼠标移到屏幕中上方，免得鼠标挡住图标、影响下次识别。
+; 再把鼠标移到横向黄金分割点（屏幕宽度的 0.618 倍、高 200），免得鼠标挡住
+; 图标、影响下次识别。
 ClickStatusIcon(IconX, IconY) {
     global CurrentDesktop
     LogFind("D" (CurrentDesktop + 1) " CLICK status icon at (" IconX "," IconY ")")
@@ -487,7 +488,7 @@ ClickStatusIcon(IconX, IconY) {
         MouseMove(IconX + Random(-18, 18), IconY + Random(-14, 14), 0)
         Sleep(100)
     }
-    MouseMove(A_ScreenWidth // 2, 200, 5)
+    MouseMove(Round(A_ScreenWidth * 0.618), 200, 5)
     ; 点完多等 0.5 秒再走：切桌面卡顿时，点下去的输入可能还没处理完，
     ; 马上切桌面会把这次点击带到新桌面上去，点到新桌面相同位置的按钮。
     Sleep(500)
