@@ -63,7 +63,7 @@ Windows 桌面自动化小工具，用 AutoHotkey v2 写的图形界面，打开
   ```
   [Email]
   SmtpServer=smtp.163.com
-  SmtpPort=587
+  SmtpPort=465
   SmtpUser=你的邮箱
   SmtpPass=邮箱的专用密码（授权码）
   MailTo=收件邮箱（不填就发给自己）
