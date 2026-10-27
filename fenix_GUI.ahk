@@ -1,8 +1,6 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 #Include FindText.ahk
-#InstallMouseHook
-#InstallKeybdHook
 
 ; ============================================================
 ; fenix 功能菜单（图形界面版，AHK v2）
@@ -124,7 +122,6 @@ CurrentDesktop := 0
 DetectSeconds := 15     ; 开头检测多少秒
 ManualPaused := false   ; F8 手动暂停的开关
 PauseStartTick := 0     ; 本次暂停开始的时间，0 表示没在暂停
-ResumeIdleMs := 3000     ; 动鼠标/键盘后停多久才继续（3 秒没动静就继续）
 ; 检测时记下的图标中心坐标（下标从 1 开始，对应桌面 1、2、3……）
 ; 0 表示该桌面还没找到这个点。
 CalStatusX := []        ; 状态图标（双剑）中心
@@ -349,17 +346,15 @@ FormatMMSS(Ms) {
 
 ; 是不是手动暂停了（F8）：轮询和开箱子都用这个判断。
 UserBusy() {
-    global ManualPaused, ResumeIdleMs
-    return ManualPaused || (A_TimeIdlePhysical < ResumeIdleMs)
+    global ManualPaused
+    return ManualPaused
 }
 
-; 轮询的暂停检查：F8 手动暂停，或者鼠标/键盘有动静（3 秒内动过）都暂停；
-; 暂停返回 true，恢复返回 false。暂停期间检测计时跟着停，
-; 恢复时把暂停的时间补回 CycleStart。
+; 轮询的暂停检查（只认 F8 手动暂停）：暂停返回 true，恢复返回 false。
+; 暂停期间检测计时跟着停，恢复时把暂停的时间补回 CycleStart。
 CheckPaused() {
-    global ManualPaused, PauseStartTick, CycleStart, ResumeIdleMs
-    Paused := ManualPaused || (A_TimeIdlePhysical < ResumeIdleMs)
-    if (!Paused) {
+    global ManualPaused, PauseStartTick, CycleStart
+    if (!ManualPaused) {
         if (PauseStartTick != 0) {
             CycleStart += (A_TickCount - PauseStartTick)
             PauseStartTick := 0
