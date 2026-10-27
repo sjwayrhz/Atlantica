@@ -1,6 +1,8 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 #Include FindText.ahk
+#InstallMouseHook
+#InstallKeybdHook
 
 ; ============================================================
 ; fenix 功能菜单（图形界面版，AHK v2）
@@ -122,6 +124,7 @@ CurrentDesktop := 0
 DetectSeconds := 15     ; 开头检测多少秒
 ManualPaused := false   ; F8 手动暂停的开关
 PauseStartTick := 0     ; 本次暂停开始的时间，0 表示没在暂停
+ResumeIdleMs := 3000     ; 动鼠标/键盘后停多久才继续（3 秒没动静就继续）
 ; 检测时记下的图标中心坐标（下标从 1 开始，对应桌面 1、2、3……）
 ; 0 表示该桌面还没找到这个点。
 CalStatusX := []        ; 状态图标（双剑）中心
@@ -129,6 +132,8 @@ CalStatusY := []
 CalProjX := []          ; 放映机图标中心
 CalProjY := []
 CalOK := []
+NonDarkSince := []     ; 每个桌面连续非暗色（亮色）是从什么时候开始的（A_TickCount），0 表示没在连续
+NonDarkClickMs := 1200000 ; 连续非暗色超过 20 分钟，就点一下状态图标（怕是误判）
 CheckProjFound := false ; 这轮检查：放映机图标在不在（check 步记下，pressX 步用）
 CheckStatusNotFound := false ; 这轮检查：状态图标是不是都没找到（check 步记下，pressX 步用）
 
@@ -344,15 +349,17 @@ FormatMMSS(Ms) {
 
 ; 是不是手动暂停了（F8）：轮询和开箱子都用这个判断。
 UserBusy() {
-    global ManualPaused
-    return ManualPaused
+    global ManualPaused, ResumeIdleMs
+    return ManualPaused || (A_TimeIdlePhysical < ResumeIdleMs)
 }
 
-; 轮询的暂停检查（只认 F8 手动暂停）：暂停返回 true，恢复返回 false。
-; 暂停期间检测计时跟着停，恢复时把暂停的时间补回 CycleStart。
+; 轮询的暂停检查：F8 手动暂停，或者鼠标/键盘有动静（3 秒内动过）都暂停；
+; 暂停返回 true，恢复返回 false。暂停期间检测计时跟着停，
+; 恢复时把暂停的时间补回 CycleStart。
 CheckPaused() {
-    global ManualPaused, PauseStartTick, CycleStart
-    if (!ManualPaused) {
+    global ManualPaused, PauseStartTick, CycleStart, ResumeIdleMs
+    Paused := ManualPaused || (A_TimeIdlePhysical < ResumeIdleMs)
+    if (!Paused) {
         if (PauseStartTick != 0) {
             CycleStart += (A_TickCount - PauseStartTick)
             PauseStartTick := 0
@@ -795,6 +802,7 @@ DetectStep() {
 MainCheckStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey, DesktopKey2, KeyGapMs
     global CalStatusX, CalStatusY, CalProjX, CalProjY, CheckProjFound, CheckStatusNotFound
+    global NonDarkSince, NonDarkClickMs, CyclePhase
     Idx := CurrentDesktop + 1
     PX := 0
     PY := 0
@@ -832,6 +840,24 @@ MainCheckStep() {
         }
     }
     CheckStatusNotFound := (!DarkFound && !UnknownFound && !BrightFound)
+    ; 连续非暗色计时：亮色确认了就开始计时，暗色/未知/没找到就清零。
+    ; 主轮询里连续非暗色超过 20 分钟，就点一下状态图标（怕是误判，
+    ; 实际是暗色却认成了亮色）；点完重新计时。
+    if (BrightFound) {
+        Since := (Idx <= NonDarkSince.Length) ? NonDarkSince[Idx] : 0
+        if (Since = 0) {
+            NonDarkSince[Idx] := A_TickCount
+        } else if (CyclePhase = "main" && A_TickCount - Since >= NonDarkClickMs) {
+            if (CalStatusX[Idx] != 0) {
+                Click(CalStatusX[Idx], CalStatusY[Idx])
+                LogFind("D" Idx " non-dark for 20+ min, clicked status icon to check (possible misjudge)")
+                ToolTip("Desktop " Idx ": non-dark 20+ min, clicked icon to check")
+            }
+            NonDarkSince[Idx] := 0
+        }
+    } else {
+        NonDarkSince[Idx] := 0
+    }
     if (ProjFound && !DarkFound && !UnknownFound && !CheckStatusNotFound) {
         ; 放映机图标在、并且是非暗色（亮色）：只按 X，不按 G，不点。
         Send(DesktopKey2)
