@@ -209,16 +209,20 @@ CfgRightX := IniRead(ConfigFile, "Click", "RightX", "980")
 CfgRightY := IniRead(ConfigFile, "Click", "RightY", "593")
 CfgRightInterval := IniRead(ConfigFile, "Click", "RightInterval", "3500")
 
-; ===== 整点截图发 Telegram（轮询开着的时候）=====
-; 每个整点，轮询走到换桌面这个安全点时，把每个桌面各截一张图发到 Telegram。
-; BotToken/ChatID 存在 fenix_Config.ini 的 [Telegram] 里，自己填，不填就不发。
-; 网络不通时，本次运行不再试（TelegramBlocked），重启脚本才再试。
-CfgTgToken := IniRead(ConfigFile, "Telegram", "BotToken", "")
-CfgTgChatID := IniRead(ConfigFile, "Telegram", "ChatID", "")
-TelegramBlocked := false
+; ===== 整点截图发邮件（轮询开着的时候）=====
+; 每个整点，轮询走到换桌面这个安全点时，把每个桌面各截一张图，
+; 三张放进一封邮件发出去。SMTP 配置存在 fenix_Config.ini 的 [Email] 里，
+; 自己填，不填就不发。发邮件失败时，本次运行不再试（MailBlocked），重启脚本才再试。
+CfgMailSmtp := IniRead(ConfigFile, "Email", "SmtpServer", "smtp.163.com")
+CfgMailPort := IniRead(ConfigFile, "Email", "SmtpPort", "465")
+CfgMailUser := IniRead(ConfigFile, "Email", "SmtpUser", "")
+CfgMailPass := IniRead(ConfigFile, "Email", "SmtpPass", "")
+CfgMailTo := IniRead(ConfigFile, "Email", "MailTo", "")
+MailBlocked := false
 HourlyPending := false
 LastShotHour := A_Hour
 ShotPs1File := ""
+MailPs1File := ""
 
 ; ===== 图形界面 =====
 MyGui := Gui(, "fenix 功能菜单")
@@ -722,7 +726,7 @@ StepDesktop() {
         return
     }
     if (DesktopPhase = "switch") {
-        ; 整点截图：轮询走到换桌面这个安全点时，先把到点的截图发图做了再继续。
+        ; 整点截图：轮询走到换桌面这个安全点时，先把到点的截图发邮件做了再继续。
         ; 还在同一个小时内才做，跨小时了（比如暂停后才恢复）就跳过，不补发。
         if (HourlyPending) {
             HourlyPending := false
@@ -883,19 +887,19 @@ PressXStep() {
     SetTimer(StepDesktop, DesktopWaitMs)
 }
 
-; ===== 整点截图发 Telegram（轮询开着的时候）=====
+; ===== 整点截图发邮件（轮询开着的时候）=====
 ; 每 10 秒看一次是不是进了新的一小时：是就记下来，等轮询走到
-; switch 步这个安全点再截图发图。只设个标记，不直接切桌面，
+; switch 步这个安全点再截图发邮件。只设个标记，不直接切桌面，
 ; 免得打断正在走的轮询步骤。
-; 轮询没跑、暂停了、没配 Telegram、网络已标坏，这一小时就跳过。
+; 轮询没跑、暂停了、没配邮箱、网络已标坏，这一小时就跳过。
 CheckHourlyShot() {
     global LastShotHour, HourlyPending, DesktopRunning
-    global CfgTgToken, CfgTgChatID, TelegramBlocked
+    global CfgMailUser, CfgMailPass, MailBlocked
     if (A_Hour = LastShotHour) {
         return
     }
     LastShotHour := A_Hour
-    if (CfgTgToken = "" || CfgTgChatID = "" || TelegramBlocked) {
+    if (CfgMailUser = "" || CfgMailPass = "" || MailBlocked) {
         return
     }
     if (!DesktopRunning || CheckPaused()) {
@@ -904,68 +908,89 @@ CheckHourlyShot() {
     HourlyPending := true
 }
 
-; 整点截图发 Telegram：在 switch 步的安全点调用。
-; 逐个桌面切过去截一张图，截完马上发；发图失败（网络不通、token 不对）
-; 就记下来，本次运行不再试（TelegramBlocked），重启脚本才再试。
-; 截图是当前主屏的 PNG，发完就删；发失败的留着，临时文件夹里能找到。
+; 整点截图发邮件：在 switch 步的安全点调用。
+; 逐个桌面切过去截一张图，三张截完放进一封邮件发出去；发邮件失败
+; （网络不通、密码不对）就记下来，本次运行不再试（MailBlocked），重启脚本才再试。
+; 截图是当前主屏的 PNG，发出去了就删；发失败的留着，临时文件夹里能找到。
 DoHourlyShots() {
-    global DesktopCount, TelegramBlocked, CfgTgToken, CfgTgChatID, ShotPs1File
-    if (CfgTgToken = "" || CfgTgChatID = "") {
+    global DesktopCount, MailBlocked
+    global CfgMailUser, CfgMailPass, CfgMailSmtp, CfgMailPort, CfgMailTo
+    global ShotPs1File, MailPs1File
+    if (CfgMailUser = "" || CfgMailPass = "") {
         return
     }
-    if (!EnsureShotPs1()) {
-        LogFind("hourly shots: cannot write ShotAndSend.ps1")
+    if (!EnsureShotPs1() || !EnsureMailPs1()) {
+        LogFind("hourly mail: cannot write helper ps1")
         return
     }
-    ToolTip("Hourly: sending desktop screenshots to Telegram...")
+    ToolTip("Hourly: sending desktop screenshots by email...")
     TimeStr := FormatTime(, "yyyyMMdd_HHmm")
     CapTime := FormatTime(, "yyyy-MM-dd HH:mm")
+    Files := ""
+    ShotOK := 0
     Loop DesktopCount {
         D := A_Index
         GoToDesktopAndWait(D - 1)
         Sleep(500)
         File := A_Temp "\fenix_shots\D" D "_" TimeStr ".png"
-        Cmd := 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' ShotPs1File '" -Token "' CfgTgToken '" -ChatID "' CfgTgChatID '" -File "' File '" -Caption "桌面 ' D ' ' CapTime '"'
+        Cmd := 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' ShotPs1File '" -File "' File '"'
         try {
             ExitCode := RunWait(Cmd, , "Hide")
         } catch {
             ExitCode := -1
         }
         if (ExitCode = 0) {
-            LogFind("hourly shots: desktop " D " sent")
-            try {
-                FileDelete(File)
-            } catch {
-            }
-        } else if (ExitCode = 2) {
-            ; 2 是截图本身失败（不是网络问题），记一笔，继续下一个桌面。
-            LogFind("hourly shots: screenshot failed on desktop " D)
+            LogFind("hourly mail: desktop " D " screenshot ok")
+            Files .= File ";"
+            ShotOK++
         } else {
-            TelegramBlocked := true
-            LogFind("hourly shots: Telegram send failed on desktop " D ", disabled for this run")
-            ToolTip()
-            return
+            LogFind("hourly mail: screenshot failed on desktop " D)
         }
     }
+    if (ShotOK = 0) {
+        ToolTip()
+        LogFind("hourly mail: no screenshots, nothing to send")
+        return
+    }
+    To := (CfgMailTo != "") ? CfgMailTo : CfgMailUser
+    Subject := "fenix 桌面截图 " CapTime
+    Body := "fenix 桌面轮询整点截图（" CapTime "），附件是桌面 1 到桌面 " DesktopCount " 的截图。"
+    Cmd := 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' MailPs1File '" -SmtpServer "' CfgMailSmtp '" -Port "' CfgMailPort '" -User "' CfgMailUser '" -Pass "' CfgMailPass '" -From "' CfgMailUser '" -To "' To '" -Subject "' Subject '" -Body "' Body '" -Files "' Files '"'
+    try {
+        ExitCode := RunWait(Cmd, , "Hide")
+    } catch {
+        ExitCode := -1
+    }
     ToolTip()
-    LogFind("hourly shots: all " DesktopCount " desktop screenshots sent")
+    if (ExitCode = 0) {
+        LogFind("hourly mail: sent " ShotOK " screenshots to " To)
+        Loop Parse, Files, ";" {
+            if (A_LoopField != "") {
+                try {
+                    FileDelete(A_LoopField)
+                } catch {
+                }
+            }
+        }
+    } else {
+        MailBlocked := true
+        LogFind("hourly mail: send failed, disabled for this run")
+    }
 }
 
-; 整点截图发 Telegram 用的 PowerShell 脚本：截当前主屏一张 PNG，马上发到 Telegram。
+; 整点截图用的 PowerShell 脚本：截当前主屏一张 PNG。
 ; 第一次用时才生成到临时文件夹，不放进仓库（仓库还是那 3 个必需文件）。
-; 这个脚本的返回值：0 发图成功，1 发图失败（网络不通、token 不对），2 截图失败。
-; 用 curl.exe 发图（Windows 自带），不用 Invoke-RestMethod -Form（系统自带的
-; PowerShell 5.1 没有 -Form 参数）。
+; 返回值：0 截图成功，2 截图失败。
 EnsureShotPs1() {
     global ShotPs1File
     if (ShotPs1File != "" && FileExist(ShotPs1File)) {
         return true
     }
     DirCreate(A_Temp "\fenix_shots")
-    ShotPs1File := A_Temp "\fenix_shots\ShotAndSend.ps1"
+    ShotPs1File := A_Temp "\fenix_shots\Shot.ps1"
     Code := "
 (
-param($Token, $ChatID, $File, $Caption)
+param($File)
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 try {
@@ -975,16 +1000,9 @@ try {
     $b.Save($File, [System.Drawing.Imaging.ImageFormat]::Png)
     $g.Dispose()
     $b.Dispose()
+    exit 0
 } catch {
     exit 2
-}
-try {
-    $url = "https://api.telegram.org/bot$Token/sendPhoto"
-    $cargs = @('-s', '--max-time', '20', '-F', "chat_id=$ChatID", '-F', "photo=@$File", '-F', "caption=$Caption", $url)
-    $out = & curl.exe @cargs
-    if ($LASTEXITCODE -eq 0 -and ($out -join '') -match '"ok":true') { exit 0 } else { exit 1 }
-} catch {
-    exit 1
 }
 )"
     try {
@@ -993,6 +1011,52 @@ try {
     }
     try {
         FileAppend(Code, ShotPs1File, "UTF-8")
+    } catch {
+        return false
+    }
+    return true
+}
+
+; 整点截图发邮件用的 PowerShell 脚本：把几张 PNG 放进一封邮件发出去。
+; 第一次用时才生成到临时文件夹，不放进仓库（仓库还是那 3 个必需文件）。
+; 返回值：0 发送成功，1 发送失败（网络不通、密码不对）。
+EnsureMailPs1() {
+    global MailPs1File
+    if (MailPs1File != "" && FileExist(MailPs1File)) {
+        return true
+    }
+    DirCreate(A_Temp "\fenix_shots")
+    MailPs1File := A_Temp "\fenix_shots\SendMail.ps1"
+    Code := "
+(
+param($SmtpServer, $Port, $User, $Pass, $From, $To, $Subject, $Body, $Files)
+try {
+    $msg = New-Object System.Net.Mail.MailMessage
+    $msg.From = $From
+    $msg.To.Add($To)
+    $msg.Subject = $Subject
+    $msg.Body = $Body
+    foreach ($f in $Files.Split(';')) {
+        if ($f -ne '') { $msg.Attachments.Add((New-Object System.Net.Mail.Attachment($f))) }
+    }
+    $smtp = New-Object System.Net.Mail.SmtpClient($SmtpServer, [int]$Port)
+    $smtp.EnableSsl = $true
+    $smtp.Timeout = 30000
+    $smtp.Credentials = New-Object System.Net.NetworkCredential($User, $Pass)
+    $smtp.Send($msg)
+    $msg.Dispose()
+    $smtp.Dispose()
+    exit 0
+} catch {
+    exit 1
+}
+)"
+    try {
+        FileDelete(MailPs1File)
+    } catch {
+    }
+    try {
+        FileAppend(Code, MailPs1File, "UTF-8")
     } catch {
         return false
     }
