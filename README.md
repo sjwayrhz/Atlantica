@@ -8,10 +8,10 @@ Windows 桌面自动化小工具，用 AutoHotkey v2 写的图形界面，打开
 | --- | --- |
 | `fenix_GUI.ahk` | 唯一入口，图形界面主脚本 |
 | `VirtualDesktopAccessor.dll` | 桌面轮询功能依赖的 DLL，须放在和主脚本同一目录 |
-| `StatusBright.png` | 状态图标亮版截图（浅蓝底色），FindText 亮版图案的来源，留着备用，运行不再需要 |
-| `StatusDark.png` | 状态图标暗版截图（深紫底色），FindText 暗版图案的来源，留着备用，运行不再需要 |
-| `StatusUnknown.png` | 状态图标未知版截图（全黑、剑也是黑的、只有边框亮），FindText 未知图案的来源，留着备用，运行不再需要 |
-| `Projector.png` | 放映机图标截图，FindText 放映机图案的来源，留着备用，运行不再需要 |
+| `images/StatusBright.png` | 状态图标亮版截图（浅蓝底色），FindText 亮版图案的来源，留着备用，运行不再需要 |
+| `images/StatusDark.png` | 状态图标暗版截图（深紫底色），FindText 暗版图案的来源，留着备用，运行不再需要 |
+| `images/StatusUnknown.png` | 状态图标未知版截图（全黑、剑也是黑的、只有边框亮），FindText 未知图案的来源，留着备用，运行不再需要 |
+| `images/Projector.png` | 放映机图标截图，FindText 放映机图案的来源，留着备用，运行不再需要 |
 | `FindText.ahk` | 找图标用的 FindText 库（v2 移植版），须放在和主脚本同一目录 |
 | `README.md` | 本说明 |
 
