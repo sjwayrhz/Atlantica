@@ -1089,6 +1089,7 @@ UpdatePauseButton() {
 ; 就什么都不做。窗口可能不在，找不到就跳过，不报错。
 AlignGameWindows() {
     global GameTitle, GetWindowDesktopNumberProc, GetCurrentDesktopNumberProc
+    LogFind("align: started")
     if (!GetWindowDesktopNumberProc || !GetCurrentDesktopNumberProc) {
         LogFind("align: DLL proc missing, skip")
         return
@@ -1096,7 +1097,8 @@ AlignGameWindows() {
     try {
         CurrentDesk := DllCall(GetCurrentDesktopNumberProc, "Int")
         WinList := WinGetList(GameTitle)
-    } catch {
+    } catch as Err {
+        LogFind("align: exception getting desktop/window list: " Err.Message)
         return
     }
     if (WinList.Length = 0) {
@@ -1170,6 +1172,7 @@ StartQuickSwitch(*) {
     ShowTempToolTip("快捷切换已开启")
     ; 2 秒后把其他两个桌面上的游戏窗口位置调成和当前桌面一样，
     ; 这样录的鼠标坐标换桌面也能用。
+    LogFind("quickswitch: started, align timer set (2s)")
     SetTimer(AlignGameWindows, -2000)
 }
 
