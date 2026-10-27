@@ -89,11 +89,15 @@ hDll := DllCall("LoadLibrary", "Str", DllPath, "Ptr")
 GoToDesktopNumberProc := 0
 GetDesktopCountProc := 0
 IsWindowOnCurrentVirtualDesktopProc := 0
+GetWindowDesktopNumberProc := 0
+GetCurrentDesktopNumberProc := 0
 DesktopCount := 0
 if (hDll) {
     GoToDesktopNumberProc := DllCall("GetProcAddress", "Ptr", hDll, "AStr", "GoToDesktopNumber", "Ptr")
     GetDesktopCountProc := DllCall("GetProcAddress", "Ptr", hDll, "AStr", "GetDesktopCount", "Ptr")
     IsWindowOnCurrentVirtualDesktopProc := DllCall("GetProcAddress", "Ptr", hDll, "AStr", "IsWindowOnCurrentVirtualDesktop", "Ptr")
+    GetWindowDesktopNumberProc := DllCall("GetProcAddress", "Ptr", hDll, "AStr", "GetWindowDesktopNumber", "Ptr")
+    GetCurrentDesktopNumberProc := DllCall("GetProcAddress", "Ptr", hDll, "AStr", "GetCurrentDesktopNumber", "Ptr")
     DesktopCount := DllCall(GetDesktopCountProc, "Int")
 }
 
@@ -121,7 +125,13 @@ CycleCount := 0
 CurrentDesktop := 0
 DetectSeconds := 15     ; 开头检测多少秒
 ManualPaused := false   ; F8 手动暂停的开关
-QuickSwitchEnabled := true  ; 快捷切换桌面（键盘 1/2/3）的开关，默认开
+QuickSwitchEnabled := false ; 快捷切换桌面（键盘 1/2/3）的开关，默认关
+Recording := false        ; 是不是正在录鼠标
+RecordEvents := []        ; 录下来的鼠标动作，每条是 [类型, X, Y, 间隔毫秒]
+RecordLastTick := 0       ; 上一个录下来的动作是什么时候（A_TickCount）
+RecordLastL := false      ; 上次轮询时左键是不是按着
+RecordLastR := false      ; 上次轮询时右键是不是按着
+PlayingBack := false      ; 是不是正在回放
 PauseStartTick := 0     ; 本次暂停开始的时间，0 表示没在暂停
 ; 检测时记下的图标中心坐标（下标从 1 开始，对应桌面 1、2、3……）
 ; 0 表示该桌面还没找到这个点。
@@ -244,15 +254,16 @@ btnQuickStart := MyGui.Add("Button", "x10 y300 w175 h30", "开始：快捷切换
 btnQuickStart.OnEvent("Click", StartQuickSwitch)
 btnQuickStop := MyGui.Add("Button", "x195 y300 w175 h30", "停止")
 btnQuickStop.OnEvent("Click", StopQuickSwitch)
-btnQuickStart.Enabled := false
-MyGui.Add("Text", "x10 y335 w360 h2 +0x1000")
+btnQuickStop.Enabled := false
+txtQuickStatus := MyGui.Add("Text", "x10 y335 w360", "状态：未录制")
+MyGui.Add("Text", "x10 y355 w360 h2 +0x1000")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y345 w115 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y365 w115 h30", "全部停止")
 btnStopAll.OnEvent("Click", StopAll)
-btnSaveConfig := MyGui.Add("Button", "x132 y345 w115 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x132 y365 w115 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", SaveConfig)
-btnExit := MyGui.Add("Button", "x254 y345 w115 h30", "退出")
+btnExit := MyGui.Add("Button", "x254 y365 w115 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 MyGui.OnEvent("Close", (*) => ExitApp())
 
@@ -263,13 +274,27 @@ if (DesktopCount < 1) {
     txtDesktopStatus.Text := "状态：不可用（DLL 加载失败，请检查同目录的 VirtualDesktopAccessor.dll）"
 }
 
-MyGui.Show("w380 h385")
+MyGui.Show("w380 h405")
 
 ; ===== 功能 1：桌面轮询 =====
 ; F11 或点按钮启动：先检测 15 秒（轮询按 G，记录放映机图标
 ; 和状态图标的位置），再一直轮询，直到再按 F11 或 F9 停掉。
 ; 轮询时每轮按 G；放映机图标在，才按 X；放映机图标在、
 ; 并且状态图标是暗色，才点状态图标一下，尝试变亮色；未知图标不点。
+; 三个功能互斥：同一时间只能跑一个。启动哪个功能，就先停掉另外两个；
+; 以后加新功能也按这个规矩——启动时停掉其他所有功能。
+StopDesktopPolling() {
+    global DesktopRunning, CyclePhase, btnDesktop, txtDesktopStatus
+    if (!DesktopRunning) {
+        return
+    }
+    DesktopRunning := false
+    CyclePhase := ""
+    SetTimer(StepDesktop, 0)
+    btnDesktop.Text := "开始：桌面轮询"
+    txtDesktopStatus.Text := "状态：已停止"
+}
+
 ToggleDesktop(*) {
     global DesktopRunning, DesktopPhase, DesktopWaitMs, DesktopKey, SwitchClickX, SwitchClickY
     global btnDesktop, txtDesktopStatus
@@ -277,14 +302,13 @@ ToggleDesktop(*) {
     global CyclePhase, CycleStart, CycleCount, DesktopNext, CurrentDesktop, DesktopCount
     global CalStatusX, CalStatusY, CalProjX, CalProjY, CalOK
     if (DesktopRunning) {
-        DesktopRunning := false
-        CyclePhase := ""
-        SetTimer(StepDesktop, 0)
-        btnDesktop.Text := "开始：桌面轮询"
-        txtDesktopStatus.Text := "状态：已停止"
+        StopDesktopPolling()
         ToolTip()
         return
     }
+    ; 启动轮询前先停掉另外两个功能（开箱子、快捷切换）。
+    StopClickLoops()
+    StopQuickSwitch()
     ; 轮询参数不用界面填了，用配置文件里的值（没保存过就用默认值：
     ; 间隔 1000 毫秒、按键 g、切换后点 (212,57)）。
     DesktopWaitMs := Integer(CfgDesktopWait)
@@ -1008,6 +1032,8 @@ ToggleBoth(*) {
         }
     }
     StopClickLoops()
+    StopDesktopPolling()
+    StopQuickSwitch()
     Point1X := Integer(edtP1X.Value)
     Point1Y := Integer(edtP1Y.Value)
     Point2X := Integer(edtP2X.Value)
@@ -1042,6 +1068,8 @@ ToggleRightOnly(*) {
         }
     }
     StopClickLoops()
+    StopDesktopPolling()
+    StopQuickSwitch()
     RightX := Integer(edtRightX.Value)
     RightY := Integer(edtRightY.Value)
     RightClickInterval := Integer(edtRightInterval.Value)
@@ -1067,6 +1095,8 @@ ToggleSynth(*) {
         }
     }
     StopClickLoops()
+    StopDesktopPolling()
+    StopQuickSwitch()
     Point1X := Integer(edtP1X.Value)
     Point1Y := Integer(edtP1Y.Value)
     Point2X := Integer(edtP2X.Value)
@@ -1112,14 +1142,9 @@ StepRight() {
 
 ; ===== 全部停止 =====
 StopAll(*) {
-    global DesktopRunning, btnDesktop, txtDesktopStatus
-    if (DesktopRunning) {
-        DesktopRunning := false
-        SetTimer(StepDesktop, 0)
-        btnDesktop.Text := "开始：桌面轮询"
-        txtDesktopStatus.Text := "状态：已停止"
-    }
+    StopDesktopPolling()
     StopClickLoops()
+    StopQuickSwitch()
     ToolTip()
 }
 
@@ -1184,6 +1209,65 @@ UpdatePauseButton() {
     }
 }
 
+; 把其他桌面上的游戏窗口位置和大小调成和当前桌面一样。
+; 这样录的鼠标坐标换桌面也能用。找不到当前桌面的游戏窗口
+; 就什么都不做。窗口可能不在，找不到就跳过，不报错。
+AlignGameWindows() {
+    global GameTitle, GetWindowDesktopNumberProc, GetCurrentDesktopNumberProc
+    if (!GetWindowDesktopNumberProc || !GetCurrentDesktopNumberProc) {
+        LogFind("align: DLL proc missing, skip")
+        return
+    }
+    try {
+        CurrentDesk := DllCall(GetCurrentDesktopNumberProc, "Int")
+        WinList := WinGetList(GameTitle)
+    } catch {
+        return
+    }
+    if (WinList.Length = 0) {
+        LogFind("align: no game window found")
+        return
+    }
+    RefX := 0
+    RefY := 0
+    RefW := 0
+    RefH := 0
+    Found := false
+    for hWnd in WinList {
+        try {
+            Desk := DllCall(GetWindowDesktopNumberProc, "Ptr", hWnd, "Int")
+        } catch {
+            continue
+        }
+        if (Desk = CurrentDesk) {
+            try {
+                WinGetPos(&RefX, &RefY, &RefW, &RefH, "ahk_id " hWnd)
+                Found := true
+            } catch {
+            }
+            break
+        }
+    }
+    if (!Found) {
+        LogFind("align: no game window on current desktop")
+        return
+    }
+    for hWnd in WinList {
+        try {
+            Desk := DllCall(GetWindowDesktopNumberProc, "Ptr", hWnd, "Int")
+        } catch {
+            continue
+        }
+        if (Desk != CurrentDesk) {
+            try {
+                WinMove(RefX, RefY, RefW, RefH, "ahk_id " hWnd)
+                LogFind("align: moved hwnd=" hWnd " (desktop " Desk ") to (" RefX "," RefY " " RefW "x" RefH ")")
+            } catch {
+            }
+        }
+    }
+}
+
 ; ===== 快捷切换桌面 =====
 ; 点按钮或按键盘 1/2/3（上面那排，右边数字键盘不算）切到对应桌面。
 ; 桌面号从 0 开始（桌面 1 = 0）。DLL 没加载成功时切不了。
@@ -1202,16 +1286,127 @@ GoToDesktop(DesktopNum) {
 ; 开始后「开始」变灰、「停止」可用；停止后反过来。
 StartQuickSwitch(*) {
     global QuickSwitchEnabled, btnQuickStart, btnQuickStop
+    ; 启动快捷切换前先停掉另外两个功能（轮询、开箱子）。
+    StopDesktopPolling()
+    StopClickLoops()
     QuickSwitchEnabled := true
     btnQuickStart.Enabled := false
     btnQuickStop.Enabled := true
+    ; 2 秒后把其他两个桌面上的游戏窗口位置调成和当前桌面一样，
+    ; 这样录的鼠标坐标换桌面也能用。
+    SetTimer(AlignGameWindows, -2000)
 }
 
 StopQuickSwitch(*) {
     global QuickSwitchEnabled, btnQuickStart, btnQuickStop
+    global Recording, PlayingBack, txtQuickStatus
+    SetTimer(AlignGameWindows, 0)
+    SetTimer(RecordPoll, 0)
+    Recording := false
+    PlayingBack := false
     QuickSwitchEnabled := false
     btnQuickStart.Enabled := true
     btnQuickStop.Enabled := false
+    txtQuickStatus.Text := "状态：未录制"
+}
+
+; ===== 录鼠标 / 回放（快捷切换开着的时候才能用）=====
+; 只录鼠标，不录键盘。录的是每次点下/松开左键/右键的位置和间隔。
+; 回放按 4，执行一遍；回放中按 5 或 F9 可以停掉。
+RecordPoll() {
+    global Recording, RecordEvents, RecordLastTick, RecordLastL, RecordLastR, txtQuickStatus
+    if (!Recording) {
+        return
+    }
+    MouseGetPos(&MX, &MY)
+    LDown := GetKeyState("LButton", "P")
+    RDown := GetKeyState("RButton", "P")
+    Now := A_TickCount
+    if (LDown && !RecordLastL) {
+        RecordEvents.Push(["LDown", MX, MY, Now - RecordLastTick])
+        RecordLastTick := Now
+        txtQuickStatus.Text := "状态：正在记录…已录 " RecordEvents.Length " 个动作"
+    } else if (!LDown && RecordLastL) {
+        RecordEvents.Push(["LUp", MX, MY, Now - RecordLastTick])
+        RecordLastTick := Now
+        txtQuickStatus.Text := "状态：正在记录…已录 " RecordEvents.Length " 个动作"
+    }
+    if (RDown && !RecordLastR) {
+        RecordEvents.Push(["RDown", MX, MY, Now - RecordLastTick])
+        RecordLastTick := Now
+        txtQuickStatus.Text := "状态：正在记录…已录 " RecordEvents.Length " 个动作"
+    } else if (!RDown && RecordLastR) {
+        RecordEvents.Push(["RUp", MX, MY, Now - RecordLastTick])
+        RecordLastTick := Now
+        txtQuickStatus.Text := "状态：正在记录…已录 " RecordEvents.Length " 个动作"
+    }
+    RecordLastL := LDown
+    RecordLastR := RDown
+}
+
+; 5 键：回放中按一下停回放；不回放时按一下开始/停止录制。
+ToggleRecord(*) {
+    global Recording, RecordEvents, RecordLastTick, RecordLastL, RecordLastR, PlayingBack, txtQuickStatus
+    if (PlayingBack) {
+        PlayingBack := false
+        ToolTip("回放已停止")
+        return
+    }
+    if (Recording) {
+        Recording := false
+        SetTimer(RecordPoll, 0)
+        txtQuickStatus.Text := "状态：已录制 " RecordEvents.Length " 个动作，按 4 回放"
+        ToolTip("已录制 " RecordEvents.Length " 个动作，按 4 回放")
+    } else {
+        RecordEvents := []
+        RecordLastTick := A_TickCount
+        RecordLastL := GetKeyState("LButton", "P")
+        RecordLastR := GetKeyState("RButton", "P")
+        Recording := true
+        SetTimer(RecordPoll, 10)
+        txtQuickStatus.Text := "状态：正在记录鼠标…再按 5 停止"
+        ToolTip("正在记录鼠标…再按 5 停止")
+    }
+}
+
+; 4 键：把录下来的鼠标动作执行一遍。间隔按录的时候一样（最长 30 秒）。
+PlayRecording(*) {
+    global Recording, RecordEvents, PlayingBack, txtQuickStatus
+    if (Recording || PlayingBack) {
+        return
+    }
+    if (RecordEvents.Length = 0) {
+        ToolTip("没有录制内容，先按 5 录一段")
+        return
+    }
+    PlayingBack := true
+    txtQuickStatus.Text := "状态：正在回放…按 5 停止"
+    ToolTip("正在回放…按 5 停止")
+    for Ev in RecordEvents {
+        if (!PlayingBack) {
+            break
+        }
+        Sleep(Min(Ev[4], 30000))
+        if (!PlayingBack) {
+            break
+        }
+        if (Ev[1] = "LDown") {
+            MouseMove(Ev[2], Ev[3], 0)
+            Click("Down")
+        } else if (Ev[1] = "LUp") {
+            MouseMove(Ev[2], Ev[3], 0)
+            Click("Up")
+        } else if (Ev[1] = "RDown") {
+            MouseMove(Ev[2], Ev[3], 0)
+            Click("Right Down")
+        } else if (Ev[1] = "RUp") {
+            MouseMove(Ev[2], Ev[3], 0)
+            Click("Right Up")
+        }
+    }
+    PlayingBack := false
+    txtQuickStatus.Text := "状态：已录制 " RecordEvents.Length " 个动作，按 4 回放"
+    ToolTip("回放完成")
 }
 
 ; ===== 快捷键 =====
@@ -1231,4 +1426,6 @@ F9::StopAll()
 1::GoToDesktop(0)
 2::GoToDesktop(1)
 3::GoToDesktop(2)
+4::PlayRecording()
+5::ToggleRecord()
 #HotIf
