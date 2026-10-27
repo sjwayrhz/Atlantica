@@ -125,7 +125,7 @@ CycleCount := 0
 CurrentDesktop := 0
 DetectSeconds := 15     ; 开头检测多少秒
 ManualPaused := false   ; F8 手动暂停的开关
-QuickSwitchEnabled := false ; 快捷切换桌面（键盘 1/2/3）的开关，默认关
+QuickSwitchEnabled := false ; 快捷切换桌面（键盘 F1/F2/F3）的开关，默认关
 Recording := false        ; 是不是正在录鼠标
 RecordEvents := []        ; 录下来的鼠标动作，每条是 [类型, X, Y, 间隔毫秒]
 RecordLastTick := 0       ; 上一个录下来的动作是什么时候（A_TickCount）
@@ -1269,7 +1269,7 @@ AlignGameWindows() {
 }
 
 ; ===== 快捷切换桌面 =====
-; 点按钮或按键盘 1/2/3（上面那排，右边数字键盘不算）切到对应桌面。
+; 点按钮或按键盘 F1/F2/F3 切到对应桌面。
 ; 桌面号从 0 开始（桌面 1 = 0）。DLL 没加载成功时切不了。
 GoToDesktop(DesktopNum) {
     global GoToDesktopNumberProc, DesktopCount
@@ -1282,7 +1282,7 @@ GoToDesktop(DesktopNum) {
     }
 }
 
-; 快捷切换的开始/停止：开始打开键盘 1/2/3 切桌面，停止就关掉。
+; 快捷切换的开始/停止：开始打开键盘 F1/F2/F3 切桌面，停止就关掉。
 ; 开始后「开始」变灰、「停止」可用；停止后反过来。
 StartQuickSwitch(*) {
     global QuickSwitchEnabled, btnQuickStart, btnQuickStop
@@ -1338,7 +1338,7 @@ ClearToolTip() {
 
 ; ===== 录鼠标 / 回放（快捷切换开着的时候才能用）=====
 ; 只录鼠标，不录键盘。录的是每次点下/松开左键/右键的位置和间隔。
-; 回放按 4，执行一遍；回放中按 5 或 F9 可以停掉。
+; 回放按 F4，执行一遍；回放中按 F5 或 F9 可以停掉。
 RecordPoll() {
     global Recording, RecordEvents, RecordLastTick, RecordLastL, RecordLastR, txtQuickStatus
     if (!Recording) {
@@ -1381,8 +1381,8 @@ ToggleRecord(*) {
     if (Recording) {
         Recording := false
         SetTimer(RecordPoll, 0)
-        txtQuickStatus.Text := "状态：已录制 " RecordEvents.Length " 个动作，按 4 回放"
-        ShowTempToolTip("已录制 " RecordEvents.Length " 个动作，按 4 回放")
+        txtQuickStatus.Text := "状态：已录制 " RecordEvents.Length " 个动作，按 F4 回放"
+        ShowTempToolTip("已录制 " RecordEvents.Length " 个动作，按 F4 回放")
     } else {
         RecordEvents := []
         RecordLastTick := A_TickCount
@@ -1390,8 +1390,8 @@ ToggleRecord(*) {
         RecordLastR := GetKeyState("RButton", "P")
         Recording := true
         SetTimer(RecordPoll, 10)
-        txtQuickStatus.Text := "状态：正在记录鼠标…再按 5 停止"
-        ToolTip("正在记录鼠标…再按 5 停止")
+        txtQuickStatus.Text := "状态：正在记录鼠标…再按 F5 停止"
+        ToolTip("正在记录鼠标…再按 F5 停止")
     }
 }
 
@@ -1402,12 +1402,12 @@ PlayRecording(*) {
         return
     }
     if (RecordEvents.Length = 0) {
-        ShowTempToolTip("没有录制内容，先按 5 录一段")
+        ShowTempToolTip("没有录制内容，先按 F5 录一段")
         return
     }
     PlayingBack := true
-    txtQuickStatus.Text := "状态：正在回放…按 5 停止"
-    ToolTip("正在回放…按 5 停止")
+    txtQuickStatus.Text := "状态：正在回放…按 F5 停止"
+    ToolTip("正在回放…按 F5 停止")
     for Ev in RecordEvents {
         if (!PlayingBack) {
             break
@@ -1447,12 +1447,11 @@ F9::StopAll()
 SC029::ToggleQuickSwitch()
 
 ; 快捷切换桌面的键盘：只在开关打开时生效（默认关），
-; 关了按 1/2/3 就是正常打字，不会切桌面。
-; 这里的 1/2/3 是上面那排数字键，右边数字键盘（Numpad1/2/3）不算。
+; 关了 F1/F2/F3 就是正常的功能键，不会切桌面。
 #HotIf QuickSwitchEnabled
-1::GoToDesktop(0)
-2::GoToDesktop(1)
-3::GoToDesktop(2)
-4::PlayRecording()
-5::ToggleRecord()
+F1::GoToDesktop(0)
+F2::GoToDesktop(1)
+F3::GoToDesktop(2)
+F4::PlayRecording()
+F5::ToggleRecord()
 #HotIf
