@@ -856,8 +856,12 @@ PressXStep() {
     if (CheckStatusNotFound) {
         ; 状态没找到：点一下记下的状态图标位置（有记下位置才点）。
         if (CalStatusX[Idx] != 0) {
-            Click(CalStatusX[Idx], CalStatusY[Idx])
-            ToolTip("Desktop " Idx ": projector yes, status not found, clicked recorded pos")
+            if (IconBright(CalStatusX[Idx], CalStatusY[Idx])) {
+                ToolTip("Desktop " Idx ": projector yes, status not found, recorded pos is bright, no click")
+            } else {
+                Click(CalStatusX[Idx], CalStatusY[Idx])
+                ToolTip("Desktop " Idx ": projector yes, status not found, clicked recorded pos")
+            }
         } else {
             ToolTip("Desktop " Idx ": projector yes, status not found, no recorded pos, no click")
         }
