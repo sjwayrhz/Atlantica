@@ -305,6 +305,24 @@ btnExit := MyGui.Add("Button", "x254 y497 w115 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 MyGui.OnEvent("Close", (*) => ExitApp())
 
+; 最小化时藏到托盘：任务栏不显示，只剩右下角托盘图标。
+; 点一下托盘图标（或右键菜单「显示窗口」）就恢复窗口。
+MyGui.OnEvent("Size", GuiOnSize)
+GuiOnSize(GuiObj, MinMax, Width, Height) {
+    if (MinMax = -1) {
+        GuiObj.Hide()
+    }
+}
+A_TrayMenu.Add("显示窗口", (*) => MyGui.Show())
+A_TrayMenu.Default := "显示窗口"
+OnMessage(0x404, TrayIconClick)
+TrayIconClick(wParam, lParam, Msg, Hwnd) {
+    ; 0x202 = 左键松开（单击托盘图标）
+    if (lParam = 0x202) {
+        MyGui.Show()
+    }
+}
+
 ; DLL 没加载成功时，禁用功能 1 和快捷切换，不影响功能 2
 if (DesktopCount < 1) {
     btnDesktop.Enabled := false
