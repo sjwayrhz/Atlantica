@@ -137,6 +137,11 @@ RecordLastTick := 0       ; 上一个录下来的动作是什么时候（A_TickC
 RecordLastL := false      ; 上次轮询时左键是不是按着
 RecordLastR := false      ; 上次轮询时右键是不是按着
 PlayingBack := false      ; 是不是正在回放
+; 录键盘时要轮询的按键（脚本自己的热键 F1-F5、F8、F9、F10、F11、F12、飘号键不录，
+; 免得录进去又触发脚本功能）。字母、数字、空格、回车、Tab、Esc、退格、
+; 左右 Shift/Ctrl/Alt、方向键、F6/F7、小键盘。
+KeysToRecord := ["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","1","2","3","4","5","6","7","8","9","0","Space","Enter","Tab","Escape","Backspace","LShift","RShift","LCtrl","RCtrl","LAlt","RAlt","Up","Down","Left","Right","F6","F7","Numpad0","Numpad1","Numpad2","Numpad3","Numpad4","Numpad5","Numpad6","Numpad7","Numpad8","Numpad9","NumpadDot","NumpadAdd","NumpadSub","NumpadMult","NumpadDiv","NumpadEnter"]
+KeyPrevState := Map()       ; 每个按键上次轮询时是不是按着（录键盘用）
 ; 刚激活的游戏窗口的位置和大小，找图标只在这个窗口里面找。
 GameWinX := 0
 GameWinY := 0
@@ -1397,13 +1402,13 @@ ClearToolTip() {
     ToolTip()
 }
 
-; ===== 录鼠标 / 回放（快捷切换开着的时候才能用）=====
-; 只录鼠标，不录键盘。录的是每次点下/松开左键/右键的位置和间隔。
+; ===== 录鼠标和键盘 / 回放（快捷切换开着的时候才能用）=====
+; 录鼠标（每次点下/松开左键/右键的位置和间隔）和键盘（每次按下/松开按键和间隔）。
 ; 回放按 F4：点一下回放 1 次；按住 F4 大约 2 秒是无限回放，
 ; 按住 2 秒后先显示「无限回放」提示，1 秒后开始循环回放，再按 F4 停掉。
 ; 每遍开始时光标旁边显示统计（回放 1 次显示「回放 1/1」，无限显示「无限回放 第 k 次」）。
 RecordPoll() {
-    global Recording, RecordEvents, RecordLastTick, RecordLastL, RecordLastR, txtQuickStatus
+    global Recording, RecordEvents, RecordLastTick, RecordLastL, RecordLastR, KeysToRecord, KeyPrevState, txtQuickStatus
     if (!Recording) {
         return
     }
@@ -1431,11 +1436,26 @@ RecordPoll() {
     }
     RecordLastL := LDown
     RecordLastR := RDown
+    ; 键盘：和鼠标一样，状态变了才记一条（按下记 KDown，松开记 KUp）。
+    for Key in KeysToRecord {
+        Down := GetKeyState(Key, "P")
+        Prev := KeyPrevState.Has(Key) ? KeyPrevState[Key] : false
+        if (Down && !Prev) {
+            RecordEvents.Push(["KDown", Key, 0, Now - RecordLastTick])
+            RecordLastTick := Now
+            txtQuickStatus.Text := "状态：正在记录…已录 " RecordEvents.Length " 个动作"
+        } else if (!Down && Prev) {
+            RecordEvents.Push(["KUp", Key, 0, Now - RecordLastTick])
+            RecordLastTick := Now
+            txtQuickStatus.Text := "状态：正在记录…已录 " RecordEvents.Length " 个动作"
+        }
+        KeyPrevState[Key] := Down
+    }
 }
 
 ; 5 键：回放中按一下停回放；不回放时按一下开始/停止录制。
 ToggleRecord(*) {
-    global Recording, RecordEvents, RecordLastTick, RecordLastL, RecordLastR, PlayingBack, txtQuickStatus
+    global Recording, RecordEvents, RecordLastTick, RecordLastL, RecordLastR, PlayingBack, KeysToRecord, KeyPrevState, txtQuickStatus
     if (PlayingBack) {
         PlayingBack := false
         ShowTempToolTip("回放已停止")
@@ -1451,10 +1471,15 @@ ToggleRecord(*) {
         RecordLastTick := A_TickCount
         RecordLastL := GetKeyState("LButton", "P")
         RecordLastR := GetKeyState("RButton", "P")
+        ; 键盘先记下当前状态，免得开始录的时候已经按着的键被当成新按下的记进去。
+        KeyPrevState := Map()
+        for Key in KeysToRecord {
+            KeyPrevState[Key] := GetKeyState(Key, "P")
+        }
         Recording := true
         SetTimer(RecordPoll, 10)
-        txtQuickStatus.Text := "状态：正在记录鼠标…再按 F5 停止"
-        ToolTip("正在记录鼠标…再按 F5 停止")
+        txtQuickStatus.Text := "状态：正在记录鼠标和键盘…再按 F5 停止"
+        ToolTip("正在记录鼠标和键盘…再按 F5 停止")
     }
 }
 
@@ -1539,6 +1564,16 @@ PlayRecording(Count) {
             } else if (Ev[1] = "RUp") {
                 MouseMove(Ev[2], Ev[3], 0)
                 Click("Right Up")
+            } else if (Ev[1] = "KDown") {
+                try {
+                    Send("{" Ev[2] " Down}")
+                } catch {
+                }
+            } else if (Ev[1] = "KUp") {
+                try {
+                    Send("{" Ev[2] " Up}")
+                } catch {
+                }
             }
         }
         if (!PlayingBack) {
@@ -1551,6 +1586,14 @@ PlayRecording(Count) {
     if (FinishedAll) {
         ToolTip()
         ShowTempToolTip("回放完成")
+    } else {
+        ; 中途停掉：松开可能还按着的修饰键和鼠标键，免得卡住。
+        try {
+            Send("{LShift Up}{RShift Up}{LCtrl Up}{RCtrl Up}{LAlt Up}{RAlt Up}")
+            Click("Up")
+            Click("Right Up")
+        } catch {
+        }
     }
     ; 中途停掉的，F4/F5 那边已经显示了「回放已停止」，这里不碰提示。
 }
