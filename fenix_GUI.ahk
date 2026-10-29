@@ -250,7 +250,7 @@ HelpText := "使用说明"
     . "`n点「开始」后 2 秒，三个桌面的游戏窗口位置调成一样。"
     . "`nF5 录鼠标+键盘+滚轮，F4 回放：点一下回放 1 次，"
     . "`n按住约 2 秒是无限回放，再按 F4 停。"
-    . "`n已保存的录制：下拉框输名字点保存，选一个点读取（F4 回放），点删除删掉。"
+    . "`n已保存的录制：下拉框输名字点保存，选一个点读取或按 F10（读完 F4 回放），点删除删掉。"
     . "`n`n【通用】"
     . "`n三个功能一次只能跑一个，启动一个会自动停掉另外两个。"
     . "`n点「全部停止」停掉三个功能（不退出）。"
@@ -313,11 +313,11 @@ MyGui.Add("Text", "x10 y347 w360 h2 +0x1000")
 ; 下拉框里可以直接输新名字（点保存就是存成这个名字），也可以选已有的名字（点读取、删除）。
 MyGui.Add("Text", "x10 y357 w360", "已保存的录制")
 cmbRecords := MyGui.Add("ComboBox", "x10 y382 w170", [])
-btnSaveRecord := MyGui.Add("Button", "x190 y382 w55 h30", "保存")
+btnSaveRecord := MyGui.Add("Button", "x185 y382 w45 h30", "保存")
 btnSaveRecord.OnEvent("Click", MinimizeAndRun(SaveRecord))
-btnLoadRecord := MyGui.Add("Button", "x250 y382 w55 h30", "读取")
+btnLoadRecord := MyGui.Add("Button", "x235 y382 w85 h30", "读取(F10)")
 btnLoadRecord.OnEvent("Click", MinimizeAndRun(LoadRecord))
-btnDeleteRecord := MyGui.Add("Button", "x310 y382 w55 h30", "删除")
+btnDeleteRecord := MyGui.Add("Button", "x325 y382 w45 h30", "删除")
 btnDeleteRecord.OnEvent("Click", MinimizeAndRun(DeleteRecord))
 MyGui.Add("Text", "x10 y422 w360 h2 +0x1000")
 
@@ -1706,6 +1706,7 @@ DeleteRecord(*) {
 ; ===== 快捷键 =====
 ; F11 = 桌面轮询 开启 / 停止（再启动从桌面 1 重新开始）
 ; F12 = 开箱子 开启 / 暂停
+F10::LoadRecord()
 F11::ToggleDesktop()
 F12::ToggleClickHotkey()
 SC029::ToggleQuickSwitch()
