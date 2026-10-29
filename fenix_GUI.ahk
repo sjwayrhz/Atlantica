@@ -497,27 +497,17 @@ FindPattern(Text, X1, Y1, X2, Y2, &CX, &CY, E1 := "", E0 := "") {
     return false
 }
 
-; 在游戏窗口里面找一个图标：位置都是固定的，第一次全窗口找，
-; 以后只在记录位置附近找（中心 ±60/±50），这样又快、屏幕别处
-; 的误匹配也进不来；附近没找到，图标可能挪位置了（窗口移动、
-; 弹窗挡住），再全窗口找一次重新定位；全窗口也找不到才是不在。
-; 没记下位置时直接全窗口找。找到返回 true，OutX/OutY 是图标中心。
+; 找一个图标：图标位置不会变，所以没记下位置时（每次刚启动
+; 轮询时）全屏找一次，找到后调用方把位置记在内存里；以后只在
+; 记下位置附近找（中心 ±60/±50），不再放大到全屏——附近没找到
+; 就是没找到。找到返回 true，OutX/OutY 是图标中心。
 FindIcon(Pattern, RecX, RecY, &OutX, &OutY, E1 := "", E0 := "") {
-    global GameWinX, GameWinY, GameWinW, GameWinH
     OutX := 0
     OutY := 0
-    ; 全窗口的范围：激活的游戏窗口里面；窗口位置没记下来时全屏找。
-    WX1 := (GameWinW > 0 && GameWinH > 0) ? GameWinX : 0
-    WY1 := (GameWinW > 0 && GameWinH > 0) ? GameWinY : 0
-    WX2 := (GameWinW > 0 && GameWinH > 0) ? GameWinX + GameWinW : A_ScreenWidth
-    WY2 := (GameWinW > 0 && GameWinH > 0) ? GameWinY + GameWinH : A_ScreenHeight
     if (RecX != 0) {
-        if (FindPattern(Pattern, RecX - 60, RecY - 50, RecX + 60, RecY + 50, &OutX, &OutY, E1, E0)) {
-            return true
-        }
-        return FindPattern(Pattern, WX1, WY1, WX2, WY2, &OutX, &OutY, E1, E0)
+        return FindPattern(Pattern, RecX - 60, RecY - 50, RecX + 60, RecY + 50, &OutX, &OutY, E1, E0)
     }
-    return FindPattern(Pattern, WX1, WY1, WX2, WY2, &OutX, &OutY, E1, E0)
+    return FindPattern(Pattern, 0, 0, A_ScreenWidth, A_ScreenHeight, &OutX, &OutY, E1, E0)
 }
 
 ; 找放映机图标（Idx 是桌面序号，从 1 开始）。
