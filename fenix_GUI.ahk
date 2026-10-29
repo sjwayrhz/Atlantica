@@ -149,8 +149,6 @@ CalStatusX := []        ; 状态图标（双剑）中心
 CalStatusY := []
 CalProjX := []          ; 放映机图标中心
 CalProjY := []
-NonDarkSince := []     ; 每个桌面连续非暗色（亮色）是从什么时候开始的（A_TickCount），0 表示没在连续
-NonDarkClickMs := 1200000 ; 连续非暗色超过 20 分钟，就点一下状态图标（怕是误判）
 CheckProjFound := false ; 这轮检查：放映机图标在不在（check 步记下，pressX 步用）
 CheckStatusNotFound := false ; 这轮检查：状态图标是不是都没找到（check 步记下，pressX 步用）
 
@@ -840,25 +838,25 @@ StepDesktop() {
     }
 }
 
-; 轮询检查：每轮到一个桌面就先找放映机图标和状态图标，
+; 轮询检查：每轮到一个桌面就先找状态图标、最后找放映机图标
+; （放映机在不在是点不点、按不按 X 的判断底子，最后搜最新），
 ; 再按下面规则做。三种状态：暗色（暗版图案找到）、未知
 ; （未知图案找到）、非暗色（亮版图案找到）；都没找到就是
 ; 状态没找到（not found）。
 ;   1. 放映机图标在、并且是非暗色：只按 X，不按 F，不点。
 ;   2. 未知：按 F；放映机图标在，才在约 0.05 秒后按 X；不点图标。
 ;   3. 暗色 + 放映机在：发现就马上点状态图标一下（在按 F 之前点），
-;      点完再判断一次：变非暗色就只按 X、不按 F；还是暗色就按 F，
-;      再在约 0.05 秒后按 X。放映机不在的暗色：不点，只按 F。
+;      点之前先复检一次放映机图标（搜状态图标期间它可能刚消失），
+;      复检不在就不点；点完再判断一次：变非暗色就只按 X、不按 F；
+;      还是暗色就按 F，再在约 0.05 秒后按 X。
+;      放映机不在的暗色：不点，只按 F。
 ;   4. 状态没找到：按 F；放映机图标在，才在约 0.05 秒后按 X；不点。
 MainCheckStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey, DesktopKey2, KeyGapMs
     global CheckProjFound, CheckStatusNotFound
-    global NonDarkSince, NonDarkClickMs, CyclePhase
     Idx := CurrentDesktop + 1
-    PX := 0
-    PY := 0
-    ProjFound := FindProjector(Idx, &PX, &PY)
-    CheckProjFound := ProjFound
+    ; 先搜状态图标，最后搜放映机图标：放映机在不在是这一轮
+    ; 点不点、按不按 X 的判断底子，放在最后搜，它最新。
     DX := 0
     DY := 0
     DarkFound := FindDark(Idx, &DX, &DY)
@@ -876,59 +874,54 @@ MainCheckStep() {
         }
     }
     CheckStatusNotFound := (!DarkFound && !UnknownFound && !BrightFound)
-    ; 连续非暗色计时：亮色确认了就开始计时，暗色/未知/没找到就清零。
-    ; 连续非暗色超过 20 分钟，就点一下本次找到的亮色图标位置（怕是误判，
-    ; 实际是暗色却认成了亮色）；点完重新计时。
-    ; 注意：NonDarkSince 一开始是空的，直接按下标写会下标越界报错，
-    ; 所以先把它补到够长。
-    while (NonDarkSince.Length < Idx) {
-        NonDarkSince.Push(0)
-    }
-    if (BrightFound) {
-        Since := (Idx <= NonDarkSince.Length) ? NonDarkSince[Idx] : 0
-        if (Since = 0) {
-            NonDarkSince[Idx] := A_TickCount
-        } else if (CyclePhase = "main" && A_TickCount - Since >= NonDarkClickMs) {
-            ClickStatusIcon(BX, BY)
-            LogFind("D" Idx " non-dark for 20+ min, clicked status icon to check (possible misjudge)")
-            ToolTip("Desktop " Idx ": non-dark 20+ min, clicked icon to check")
-            NonDarkSince[Idx] := 0
-        }
-    } else {
-        NonDarkSince[Idx] := 0
-    }
+    PX := 0
+    PY := 0
+    ProjFound := FindProjector(Idx, &PX, &PY)
+    CheckProjFound := ProjFound
     ; 暗色 + 放映机在：发现就马上点（按 F 之前点，点的是这次刚找到的位置；
     ; 按 F 可能过图，等 0.05 秒后再点位置就变了）。
+    ; 点之前先复检一次放映机图标：搜状态图标期间它可能刚消失，
+    ; 复检不在就不点（规则：放映机不在不能点），并把复检结果刷给
+    ; CheckProjFound，后面按不按 X 也按复检结果来。
     ; 点完再判断一次：点完变成非暗色（亮色）就不按 F 了（只按 X）；
     ; 还是暗色就照常往下按 F。
     if (ProjFound && DarkFound) {
-        ClickStatusIcon(DX, DY)
-        LogFind("D" Idx " dark found, clicked immediately")
-        ToolTip("Desktop " Idx ": projector yes, dark, clicked immediately")
-        ; 点完重新找一次状态，判断现在是不是非暗色（亮色）。
-        DX2 := 0
-        DY2 := 0
-        StillDark := FindDark(Idx, &DX2, &DY2)
-        NowBright := false
-        if (!StillDark) {
-            UX2 := 0
-            UY2 := 0
-            if (!FindUnknown(Idx, &UX2, &UY2)) {
-                BX2 := 0
-                BY2 := 0
-                NowBright := FindBright(Idx, &BX2, &BY2)
+        PX2 := 0
+        PY2 := 0
+        ProjFound := FindProjector(Idx, &PX2, &PY2)
+        CheckProjFound := ProjFound
+        if (!ProjFound) {
+            LogFind("D" Idx " dark found but projector gone at pre-click re-check, click skipped")
+            ToolTip("Desktop " Idx ": dark, projector gone at re-check, no click")
+        } else {
+            ClickStatusIcon(DX, DY)
+            LogFind("D" Idx " dark found, clicked immediately")
+            ToolTip("Desktop " Idx ": projector yes, dark, clicked immediately")
+            ; 点完重新找一次状态，判断现在是不是非暗色（亮色）。
+            DX2 := 0
+            DY2 := 0
+            StillDark := FindDark(Idx, &DX2, &DY2)
+            NowBright := false
+            if (!StillDark) {
+                UX2 := 0
+                UY2 := 0
+                if (!FindUnknown(Idx, &UX2, &UY2)) {
+                    BX2 := 0
+                    BY2 := 0
+                    NowBright := FindBright(Idx, &BX2, &BY2)
+                }
             }
+            if (NowBright) {
+                ; 点完变非暗色：只按 X，不按 F。
+                Send(DesktopKey2)
+                LogFind("D" Idx " dark clicked, now non-dark, X only, no F")
+                ToolTip("Desktop " Idx ": dark clicked, now non-dark, X only, no F")
+                DesktopPhase := "switch"
+                SetTimer(StepDesktop, DesktopWaitMs)
+                return
+            }
+            LogFind("D" Idx " dark clicked, still dark, press F")
         }
-        if (NowBright) {
-            ; 点完变非暗色：只按 X，不按 F。
-            Send(DesktopKey2)
-            LogFind("D" Idx " dark clicked, now non-dark, X only, no F")
-            ToolTip("Desktop " Idx ": dark clicked, now non-dark, X only, no F")
-            DesktopPhase := "switch"
-            SetTimer(StepDesktop, DesktopWaitMs)
-            return
-        }
-        LogFind("D" Idx " dark clicked, still dark, press F")
     }
     if (ProjFound && !DarkFound && !UnknownFound && !CheckStatusNotFound) {
         ; 放映机图标在、并且是非暗色（亮色）：只按 X，不按 F，不点。
