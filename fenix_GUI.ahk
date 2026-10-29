@@ -221,12 +221,62 @@ RightY := Integer(CfgRightY)
 MyGui := Gui(, "fenix 功能菜单")
 MyGui.SetFont("s10")
 
+; 点按钮时先最小化窗口（藏到托盘），再执行按钮原来的功能。
+; 只包按钮的点击，不包快捷键（按快捷键时不最小化）。
+; 退出、取点（自己会最小化再恢复）、使用说明（要看面板）不用包。
+MinimizeAndRun(Func) {
+    return (*) => MinimizeThenCall(Func)
+}
+MinimizeThenCall(Func) {
+    MyGui.Minimize()
+    Func.Call()
+}
+
+; 使用说明面板（窗口右侧，点「使用说明」按钮展开/收起）。
+HelpShown := false
+HelpText := "使用说明"
+    . "`n`n【功能 1：桌面轮询】"
+    . "`nF11 或点「开始：桌面轮询」启动，三个桌面一直轮询。"
+    . "`n切到每个桌面后自动激活游戏窗口，检查放映机图标和状态图标："
+    . "`n放映机在、状态是暗色就点状态图标；放映机在、非暗色就只按 X；"
+    . "`n其他情况按 F，放映机在才按 X。"
+    . "`n点「暂停」暂停轮询和开箱子，再点「继续」恢复；再按 F11 停止。"
+    . "`n`n【功能 2：开箱子】"
+    . "`n点「箱子位置」「自动放入」「开始精炼」取点（窗口会最小化，"
+    . "`n在屏幕上点一下位置，按 Esc 取消）。"
+    . "`n三种模式三选一：两种点击同时操作 / 抽奖（只右键）/ 合成（只两点）。"
+    . "`nF12 开启/暂停。"
+    . "`n`n【功能 3：快捷切换桌面】"
+    . "`n点「开始：快捷切换」或按飘号键（键盘左上角 1 左边那个键）开启，"
+    . "`nF1/F2/F3 切到桌面 1/2/3，切过去后自动点选游戏窗口。"
+    . "`n点「开始」后 2 秒，三个桌面的游戏窗口位置调成一样。"
+    . "`nF5 录鼠标+键盘+滚轮，F4 回放：点一下回放 1 次，"
+    . "`n按住约 2 秒是无限回放，再按 F4 停。"
+    . "`n已保存的录制：下拉框输名字点保存，选一个点读取（F4 回放），点删除删掉。"
+    . "`n`n【通用】"
+    . "`n三个功能一次只能跑一个，启动一个会自动停掉另外两个。"
+    . "`n点「全部停止」停掉三个功能（不退出）。"
+    . "`n点按钮时窗口自动最小化藏到托盘，点托盘图标恢复。"
+    . "`n关窗口或点「退出」才是退出程序。"
+ToggleHelp(*) {
+    global HelpShown, MyGui, txtHelp
+    if (HelpShown) {
+        txtHelp.Visible := false
+        MyGui.Show("w380 h480")
+        HelpShown := false
+    } else {
+        txtHelp.Visible := true
+        MyGui.Show("w700 h480")
+        HelpShown := true
+    }
+}
+
 ; ---- 功能 1：桌面轮询 ----
 MyGui.Add("Text", "x10 y10 w360", "1. 桌面轮询 (F11)")
 btnDesktop := MyGui.Add("Button", "x10 y35 w175 h30", "开始：桌面轮询")
-btnDesktop.OnEvent("Click", ToggleDesktop)
+btnDesktop.OnEvent("Click", MinimizeAndRun(ToggleDesktop))
 btnDesktopPause := MyGui.Add("Button", "x195 y35 w175 h30", "暂停")
-btnDesktopPause.OnEvent("Click", ToggleManualPause)
+btnDesktopPause.OnEvent("Click", MinimizeAndRun(ToggleManualPause))
 txtDesktopStatus := MyGui.Add("Text", "x10 y70 w360", "状态：未运行")
 MyGui.Add("Text", "x10 y90 w360 h2 +0x1000")
 
@@ -242,20 +292,20 @@ btnCapP2 := MyGui.Add("Button", "x254 y122 w115 h30", "开始精炼")
 btnCapP2.OnEvent("Click", (*) => CapturePos(2))
 txtClickPos := MyGui.Add("Text", "x10 y158 w360 h28", "")
 btnBoth := MyGui.Add("Button", "x10 y192 w150 h30", "两种点击同时操作")
-btnBoth.OnEvent("Click", ToggleBoth)
+btnBoth.OnEvent("Click", MinimizeAndRun(ToggleBoth))
 btnRightOnly := MyGui.Add("Button", "x165 y192 w100 h30", "抽奖")
-btnRightOnly.OnEvent("Click", ToggleRightOnly)
+btnRightOnly.OnEvent("Click", MinimizeAndRun(ToggleRightOnly))
 btnSynth := MyGui.Add("Button", "x270 y192 w100 h30", "合成")
-btnSynth.OnEvent("Click", ToggleSynth)
+btnSynth.OnEvent("Click", MinimizeAndRun(ToggleSynth))
 txtClickStatus := MyGui.Add("Text", "x10 y227 w360", "状态：未运行")
 MyGui.Add("Text", "x10 y247 w360 h2 +0x1000")
 
 ; ---- 3. 快捷切换桌面 ----
 MyGui.Add("Text", "x10 y257 w360", "3. 快捷切换桌面 (~)")
 btnQuickStart := MyGui.Add("Button", "x10 y282 w175 h30", "开始：快捷切换")
-btnQuickStart.OnEvent("Click", StartQuickSwitch)
+btnQuickStart.OnEvent("Click", MinimizeAndRun(StartQuickSwitch))
 btnQuickStop := MyGui.Add("Button", "x195 y282 w175 h30", "停止")
-btnQuickStop.OnEvent("Click", StopQuickSwitch)
+btnQuickStop.OnEvent("Click", MinimizeAndRun(StopQuickSwitch))
 btnQuickStop.Enabled := false
 txtQuickStatus := MyGui.Add("Text", "x10 y322 w360", "状态：未录制")
 MyGui.Add("Text", "x10 y347 w360 h2 +0x1000")
@@ -266,20 +316,25 @@ MyGui.Add("Text", "x10 y347 w360 h2 +0x1000")
 MyGui.Add("Text", "x10 y357 w360", "已保存的录制")
 cmbRecords := MyGui.Add("ComboBox", "x10 y382 w170", [])
 btnSaveRecord := MyGui.Add("Button", "x190 y382 w55 h30", "保存")
-btnSaveRecord.OnEvent("Click", SaveRecord)
+btnSaveRecord.OnEvent("Click", MinimizeAndRun(SaveRecord))
 btnLoadRecord := MyGui.Add("Button", "x250 y382 w55 h30", "读取")
-btnLoadRecord.OnEvent("Click", LoadRecord)
+btnLoadRecord.OnEvent("Click", MinimizeAndRun(LoadRecord))
 btnDeleteRecord := MyGui.Add("Button", "x310 y382 w55 h30", "删除")
-btnDeleteRecord.OnEvent("Click", DeleteRecord)
+btnDeleteRecord.OnEvent("Click", MinimizeAndRun(DeleteRecord))
 MyGui.Add("Text", "x10 y422 w360 h2 +0x1000")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y432 w115 h30", "全部停止")
-btnStopAll.OnEvent("Click", StopAll)
-btnSaveConfig := MyGui.Add("Button", "x132 y432 w115 h30", "保存配置")
-btnSaveConfig.OnEvent("Click", SaveConfig)
-btnExit := MyGui.Add("Button", "x254 y432 w115 h30", "退出")
+btnStopAll := MyGui.Add("Button", "x10 y432 w86 h30", "全部停止")
+btnStopAll.OnEvent("Click", MinimizeAndRun(StopAll))
+btnSaveConfig := MyGui.Add("Button", "x101 y432 w86 h30", "保存配置")
+btnSaveConfig.OnEvent("Click", MinimizeAndRun(SaveConfig))
+btnHelp := MyGui.Add("Button", "x192 y432 w86 h30", "使用说明")
+btnHelp.OnEvent("Click", ToggleHelp)
+btnExit := MyGui.Add("Button", "x283 y432 w86 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
+; 使用说明面板（窗口右侧，平时藏着，点「使用说明」才展开显示）。
+txtHelp := MyGui.Add("Edit", "x390 y10 w300 h460 +ReadOnly +Multi +VScroll", HelpText)
+txtHelp.Visible := false
 MyGui.OnEvent("Close", (*) => ExitApp())
 
 ; 最小化时藏到托盘：任务栏不显示，只剩右下角托盘图标。
