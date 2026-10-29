@@ -67,14 +67,8 @@ DetectHiddenWindows(true)
 ;        只做两点点击，右键点击不启动
 ;      三个按钮互斥：点另一个会先停掉当前模式再启动新模式；
 ;      再点一次正在运行的按钮就是停止。
-;   3. 跟随队长（F10，在“快捷切换桌面”区里）：
-;      点“开启跟随队长 (F10)”或按 F10 启动，跑一遍四步、点完 X 点
-;      自动停；中途再按一次可以停掉。和快捷切换不冲突，可以叠加使用。
-;      都是左键点击，每步间隔 0.5 秒：P 点 -> 队长名称 -> 跟随队员 -> X 点。
-;      四个点用按钮取点（窗口会最小化，在屏幕上点一下就行）。
-;
 ; 使用：双击运行本脚本，点按钮或按快捷键即可。
-;       F11 开关桌面轮询，F12 开关开箱子，F10 开关跟随队长。
+;       F11 开关桌面轮询，F12 开关开箱子。
 ;       桌面轮询只有开始和暂停两个按钮，参数
 ;       直接写死在代码里。开箱子的坐标用按钮取点（窗口会最小化，
 ;       在屏幕上点一下就行），点“保存配置”会存到同目录的
@@ -137,7 +131,7 @@ RecordLastTick := 0       ; 上一个录下来的动作是什么时候（A_TickC
 RecordLastL := false      ; 上次轮询时左键是不是按着
 RecordLastR := false      ; 上次轮询时右键是不是按着
 PlayingBack := false      ; 是不是正在回放
-; 录键盘时要轮询的按键（脚本自己的热键 F1-F5、F8、F9、F10、F11、F12、飘号键不录，
+; 录键盘时要轮询的按键（脚本自己的热键 F1-F5、F8、F9、F11、F12、飘号键不录，
 ; 免得录进去又触发脚本功能）。字母、数字、空格、回车、Tab、Esc、退格、
 ; 左右 Shift/Ctrl/Alt、方向键、F6/F7、小键盘。
 KeysToRecord := ["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","1","2","3","4","5","6","7","8","9","0","Space","Enter","Tab","Escape","Backspace","LShift","RShift","LCtrl","RCtrl","LAlt","RAlt","Up","Down","Left","Right","F6","F7","Numpad0","Numpad1","Numpad2","Numpad3","Numpad4","Numpad5","Numpad6","Numpad7","Numpad8","Numpad9","NumpadDot","NumpadAdd","NumpadSub","NumpadMult","NumpadDiv","NumpadEnter"]
@@ -198,7 +192,7 @@ RightClickInterval := 3500 ; 右键间隔，固定值
 
 ; ===== 参数 =====
 ; 轮询的参数和开箱子的三个等待时间直接写死在代码里，不用 ini 文件。
-; 开箱子的三个坐标和跟随队长的四个点存在脚本同目录的 fenix_Config.ini 里，
+; 开箱子的三个坐标存在脚本同目录的 fenix_Config.ini 里，
 ; 点“保存配置”会更新它，下次打开自动恢复。
 ConfigFile := A_ScriptDir "\fenix_Config.ini"
 CfgDesktopWait := "1000"
@@ -211,14 +205,6 @@ CfgPoint2X := IniRead(ConfigFile, "Click", "Point2X", "822")
 CfgPoint2Y := IniRead(ConfigFile, "Click", "Point2Y", "450")
 CfgRightX := IniRead(ConfigFile, "Click", "RightX", "980")
 CfgRightY := IniRead(ConfigFile, "Click", "RightY", "593")
-CfgFollowPX := IniRead(ConfigFile, "Follow", "PX", "0")
-CfgFollowPY := IniRead(ConfigFile, "Follow", "PY", "0")
-CfgFollowLeaderX := IniRead(ConfigFile, "Follow", "LeaderX", "0")
-CfgFollowLeaderY := IniRead(ConfigFile, "Follow", "LeaderY", "0")
-CfgFollowMemberX := IniRead(ConfigFile, "Follow", "MemberX", "0")
-CfgFollowMemberY := IniRead(ConfigFile, "Follow", "MemberY", "0")
-CfgFollowXX := IniRead(ConfigFile, "Follow", "XX", "0")
-CfgFollowXY := IniRead(ConfigFile, "Follow", "XY", "0")
 
 ; 开箱子运行时用的坐标，先按配置文件里的值来；
 ; 点“取点”按钮改了之后就用新取到的值。
@@ -228,19 +214,6 @@ Point2X := Integer(CfgPoint2X)
 Point2Y := Integer(CfgPoint2Y)
 RightX := Integer(CfgRightX)
 RightY := Integer(CfgRightY)
-
-; 跟随队长用的四个点，先按配置文件里的值来；
-; 点取点按钮改了之后就用新取到的值。
-FollowPX := Integer(CfgFollowPX)
-FollowPY := Integer(CfgFollowPY)
-FollowLeaderX := Integer(CfgFollowLeaderX)
-FollowLeaderY := Integer(CfgFollowLeaderY)
-FollowMemberX := Integer(CfgFollowMemberX)
-FollowMemberY := Integer(CfgFollowMemberY)
-FollowXX := Integer(CfgFollowXX)
-FollowXY := Integer(CfgFollowXY)
-FollowRunning := false
-FollowStep := 0
 
 ; ===== 图形界面 =====
 MyGui := Gui(, "fenix 功能菜单")
@@ -282,31 +255,15 @@ btnQuickStart.OnEvent("Click", StartQuickSwitch)
 btnQuickStop := MyGui.Add("Button", "x195 y282 w175 h30", "停止")
 btnQuickStop.OnEvent("Click", StopQuickSwitch)
 btnQuickStop.Enabled := false
-; ---- 3.1 跟随队长（和快捷切换不冲突，可以叠加使用；F10 开启 / 停止）----
-; 分组框把“开启跟随队长”按钮和下面四个取点按钮框在一起（AHK 自带的
-; 分组框是细实线边框，不是虚线；框住五个按钮、看起来是一个模块就行）。
-grpFollow := MyGui.Add("GroupBox", "x8 y315 w364 h85", "")
-btnFollow := MyGui.Add("Button", "x10 y322 w360 h30", "开启跟随队长 (F10)")
-btnFollow.OnEvent("Click", ToggleFollow)
-btnCapFollowP := MyGui.Add("Button", "x10 y362 w87 h30", "P点")
-btnCapFollowP.OnEvent("Click", (*) => CapturePos(4))
-btnCapFollowLeader := MyGui.Add("Button", "x101 y362 w87 h30", "队长名称")
-btnCapFollowLeader.OnEvent("Click", (*) => CapturePos(5))
-btnCapFollowMember := MyGui.Add("Button", "x192 y362 w87 h30", "跟随队员")
-btnCapFollowMember.OnEvent("Click", (*) => CapturePos(6))
-btnCapFollowX := MyGui.Add("Button", "x283 y362 w87 h30", "X点")
-btnCapFollowX.OnEvent("Click", (*) => CapturePos(7))
-txtFollowPos := MyGui.Add("Text", "x10 y407 w360 h28", "")
-txtFollowStatus := MyGui.Add("Text", "x10 y437 w360", "状态：未运行")
-txtQuickStatus := MyGui.Add("Text", "x10 y462 w360", "状态：未录制")
-MyGui.Add("Text", "x10 y487 w360 h2 +0x1000")
+txtQuickStatus := MyGui.Add("Text", "x10 y322 w360", "状态：未录制")
+MyGui.Add("Text", "x10 y347 w360 h2 +0x1000")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y497 w115 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y357 w115 h30", "全部停止")
 btnStopAll.OnEvent("Click", StopAll)
-btnSaveConfig := MyGui.Add("Button", "x132 y497 w115 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x132 y357 w115 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", SaveConfig)
-btnExit := MyGui.Add("Button", "x254 y497 w115 h30", "退出")
+btnExit := MyGui.Add("Button", "x254 y357 w115 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 MyGui.OnEvent("Close", (*) => ExitApp())
 
@@ -336,9 +293,8 @@ if (DesktopCount < 1) {
 }
 
 UpdateClickPosText()
-UpdateFollowPosText()
 
-MyGui.Show("w380 h597")
+MyGui.Show("w380 h457")
 
 ; ===== 功能 1：桌面轮询 =====
 ; F11 或点按钮启动：一直轮询，直到再按 F11 或再点按钮停掉。
@@ -924,21 +880,14 @@ PressXStep() {
 
 ; ===== 功能 2：开箱子 =====
 ; 取点：点取点按钮后窗口最小化，在屏幕上点一下要记录的位置，
-; 按 Esc 取消。target: 1=自动放入(点 1)，2=开始精炼(点 2)，3=箱子位置(右键)，
-; 4=跟随队长的 P 点，5=队长名称，6=跟随队员，7=X 点。
+; 按 Esc 取消。target: 1=自动放入(点 1)，2=开始精炼(点 2)，3=箱子位置(右键)。
 UpdateClickPosText() {
     global txtClickPos, Point1X, Point1Y, Point2X, Point2Y, RightX, RightY
     txtClickPos.Text := "箱子位置(" RightX ", " RightY ")  自动放入(" Point1X ", " Point1Y ")  开始精炼(" Point2X ", " Point2Y ")"
 }
 
-UpdateFollowPosText() {
-    global txtFollowPos, FollowPX, FollowPY, FollowLeaderX, FollowLeaderY, FollowMemberX, FollowMemberY, FollowXX, FollowXY
-    txtFollowPos.Text := "P点(" FollowPX ", " FollowPY ")  队长名称(" FollowLeaderX ", " FollowLeaderY ")  跟随队员(" FollowMemberX ", " FollowMemberY ")  X点(" FollowXX ", " FollowXY ")"
-}
-
 CapturePos(target) {
     global MyGui, Point1X, Point1Y, Point2X, Point2Y, RightX, RightY
-    global FollowPX, FollowPY, FollowLeaderX, FollowLeaderY, FollowMemberX, FollowMemberY, FollowXX, FollowXY
     MyGui.Minimize()
     Sleep(300)
     KeyWait("LButton")
@@ -963,27 +912,11 @@ CapturePos(target) {
         } else if (target = 2) {
             Point2X := mx
             Point2Y := my
-        } else if (target = 3) {
+        } else {
             RightX := mx
             RightY := my
-        } else if (target = 4) {
-            FollowPX := mx
-            FollowPY := my
-        } else if (target = 5) {
-            FollowLeaderX := mx
-            FollowLeaderY := my
-        } else if (target = 6) {
-            FollowMemberX := mx
-            FollowMemberY := my
-        } else {
-            FollowXX := mx
-            FollowXY := my
         }
-        if (target <= 3) {
-            UpdateClickPosText()
-        } else {
-            UpdateFollowPosText()
-        }
+        UpdateClickPosText()
         ShowTempToolTip("已记录 (" mx ", " my ")，点保存配置可存下来")
     }
     MyGui.Restore()
@@ -1114,99 +1047,22 @@ StopAll(*) {
     StopDesktopPolling()
     StopClickLoops()
     StopQuickSwitch()
-    StopFollow()
     ToolTip()
 }
 
-; ===== 跟随队长（F10 / “开启跟随队长”按钮）=====
-; 和快捷切换不冲突，可以叠加使用；启动后跑一遍下面四步，点完 X 点自动停，
-; 中途再按 F10（或点按钮、或点“全部停止”）可以停掉。都是左键点击。
-; 顺序：P 点 -> 队长名称 -> 跟随队员 -> X 点，每步间隔 0.5 秒。
-StepFollow() {
-    global FollowRunning, FollowStep
-    global FollowPX, FollowPY, FollowLeaderX, FollowLeaderY, FollowMemberX, FollowMemberY, FollowXX, FollowXY
-    if (!FollowRunning) {
-        return
-    }
-    ; 手动暂停了就不点，等恢复后再继续。
-    if (UserBusy()) {
-        SetTimer(StepFollow, 500)
-        return
-    }
-    if (FollowStep = 0) {
-        Click(FollowPX, FollowPY)
-    } else if (FollowStep = 1) {
-        Click(FollowLeaderX, FollowLeaderY)
-    } else if (FollowStep = 2) {
-        Click(FollowMemberX, FollowMemberY)
-    } else {
-        Click(FollowXX, FollowXY)
-        StopFollow()
-        ShowTempToolTip("跟随队长已完成")
-        return
-    }
-    FollowStep := FollowStep + 1
-    SetTimer(StepFollow, 500)
-}
-
-UpdateFollowButtons() {
-    global FollowRunning, btnFollow, txtFollowStatus
-    if (FollowRunning) {
-        btnFollow.Text := "停止跟随队长 (F10)"
-        txtFollowStatus.Text := "状态：运行中（跟随队长）"
-    } else {
-        btnFollow.Text := "开启跟随队长 (F10)"
-        txtFollowStatus.Text := "状态：未运行"
-    }
-}
-
-ToggleFollow(*) {
-    global FollowRunning, FollowStep
-    global FollowPX, FollowPY, FollowLeaderX, FollowLeaderY, FollowMemberX, FollowMemberY, FollowXX, FollowXY
-    if (FollowRunning) {
-        StopFollow()
-        return
-    }
-    ; 四个点都没取过（都是 0,0）就先不跑，免得点到屏幕左上角。
-    if (FollowPX = 0 and FollowPY = 0 and FollowLeaderX = 0 and FollowLeaderY = 0 and FollowMemberX = 0 and FollowMemberY = 0 and FollowXX = 0 and FollowXY = 0) {
-        MsgBox("四个点还没取，先点下面的 P点 / 队长名称 / 跟随队员 / X点 取点。")
-        return
-    }
-    FollowRunning := true
-    FollowStep := 0
-    UpdateFollowButtons()
-    SetTimer(StepFollow, -500)
-}
-
-StopFollow(*) {
-    global FollowRunning
-    FollowRunning := false
-    SetTimer(StepFollow, 0)
-    UpdateFollowButtons()
-}
-
 ; ===== 保存配置 =====
-; 把开箱子当前用的三个坐标和跟随队长的四个点存到脚本同目录的 fenix_Config.ini，
+; 把开箱子当前用的三个坐标存到脚本同目录的 fenix_Config.ini，
 ; 下次打开自动恢复。等待时间是写死在代码里的固定值，不用 ini，不写。
 ; 正在运行时点保存也不会停掉正在跑的功能。
 SaveConfig(*) {
     global ConfigFile
     global Point1X, Point1Y, Point2X, Point2Y, RightX, RightY
-    global FollowPX, FollowPY, FollowLeaderX, FollowLeaderY, FollowMemberX, FollowMemberY, FollowXX, FollowXY
     IniWrite(Point1X, ConfigFile, "Click", "Point1X")
     IniWrite(Point1Y, ConfigFile, "Click", "Point1Y")
     IniWrite(Point2X, ConfigFile, "Click", "Point2X")
     IniWrite(Point2Y, ConfigFile, "Click", "Point2Y")
     IniWrite(RightX, ConfigFile, "Click", "RightX")
     IniWrite(RightY, ConfigFile, "Click", "RightY")
-    IniWrite(FollowPX, ConfigFile, "Follow", "PX")
-    IniWrite(FollowPY, ConfigFile, "Follow", "PY")
-    IniWrite(FollowLeaderX, ConfigFile, "Follow", "LeaderX")
-    IniWrite(FollowLeaderY, ConfigFile, "Follow", "LeaderY")
-    IniWrite(FollowMemberX, ConfigFile, "Follow", "MemberX")
-    IniWrite(FollowMemberY, ConfigFile, "Follow", "MemberY")
-    IniWrite(FollowXX, ConfigFile, "Follow", "XX")
-    IniWrite(FollowXY, ConfigFile, "Follow", "XY")
     MsgBox("配置已保存到：`n" ConfigFile "`n下次打开脚本会自动恢复这些坐标。")
 }
 
@@ -1599,10 +1455,8 @@ PlayRecording(Count) {
 }
 
 ; ===== 快捷键 =====
-; F10 = 跟随队长 开启 / 停止（和快捷切换不冲突，可以叠加使用）
 ; F11 = 桌面轮询 开启 / 停止（再启动从桌面 1 重新开始）
 ; F12 = 开箱子 开启 / 暂停
-F10::ToggleFollow()
 F11::ToggleDesktop()
 F12::ToggleClickHotkey()
 SC029::ToggleQuickSwitch()
