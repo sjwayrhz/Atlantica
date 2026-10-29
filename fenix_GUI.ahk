@@ -1258,8 +1258,9 @@ ClearToolTip() {
     ToolTip()
 }
 
-; ===== 录鼠标和键盘 / 回放（快捷切换开着的时候才能用）=====
-; 录鼠标（每次点下/松开左键/右键的位置和间隔）和键盘（每次按下/松开按键和间隔）。
+; ===== 录鼠标、键盘和滚轮 / 回放（快捷切换开着的时候才能用）=====
+; 录鼠标（每次点下/松开左键/右键的位置和间隔）、键盘（每次按下/松开按键和间隔）
+; 和滚轮（每次向上/向下转动一格的位置和间隔）。
 ; 回放按 F4：点一下回放 1 次；按住 F4 大约 2 秒是无限回放，
 ; 按住 2 秒后先显示「无限回放」提示，1 秒后开始循环回放，再按 F4 停掉。
 ; 每遍开始时光标旁边显示统计（回放 1 次显示「回放 1/1」，无限显示「无限回放 第 k 次」）。
@@ -1307,6 +1308,21 @@ RecordPoll() {
         }
         KeyPrevState[Key] := Down
     }
+}
+
+; 滚轮转动：录下来一格（向上记 WheelUp，向下记 WheelDown），带鼠标位置和间隔。
+; 滚轮不能像按键那样轮询状态（转动是一瞬间的事，10 毫秒轮询会漏），
+; 所以用带 ~ 的热键：既录下来，又不挡住滚轮本身（游戏里照常滚动）。
+RecordWheel(Direction) {
+    global Recording, RecordEvents, RecordLastTick, txtQuickStatus
+    if (!Recording) {
+        return
+    }
+    MouseGetPos(&MX, &MY)
+    Now := A_TickCount
+    RecordEvents.Push(["Wheel" Direction, MX, MY, Now - RecordLastTick])
+    RecordLastTick := Now
+    txtQuickStatus.Text := "状态：正在记录…已录 " RecordEvents.Length " 个动作"
 }
 
 ; 5 键：回放中按一下停回放；不回放时按一下开始/停止录制。
@@ -1430,6 +1446,12 @@ PlayRecording(Count) {
                     Send("{" Ev[2] " Up}")
                 } catch {
                 }
+            } else if (Ev[1] = "WheelUp") {
+                MouseMove(Ev[2], Ev[3], 0)
+                Click("WheelUp")
+            } else if (Ev[1] = "WheelDown") {
+                MouseMove(Ev[2], Ev[3], 0)
+                Click("WheelDown")
             }
         }
         if (!PlayingBack) {
@@ -1469,4 +1491,10 @@ F2::GoToDesktop(1)
 F3::GoToDesktop(2)
 F4::F4Handler()
 F5::ToggleRecord()
+#HotIf
+
+; 滚轮：只在录制时生效（~ 表示不挡住滚轮，游戏里照常滚动）。
+#HotIf Recording
+~WheelUp::RecordWheel("Up")
+~WheelDown::RecordWheel("Down")
 #HotIf
