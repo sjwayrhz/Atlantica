@@ -184,7 +184,6 @@ ProjectorText := "|<projector>*79$46.s000000TDzzzzzwwzzzzzzurzzzzzzfTzVzzzyhzw3z
 ProjectorTextOld := "|<projector>*68$45.Tzzzzzzv0000003Hzzzzzz+TzzzzzxLzwLzzzezz1zzzxLzk7zzzezy0zzzxLzU6T3zezw0s1zxLzU3EHzezw0sERxLzo701zezy0s0DxLzm764rezk0k1axLw084Srez001UCxLk0601zey80y0jxLl00k1jez8006NxLt0007jezUz07zxLz3z0zzezs3y7zxLzU7lzrezwM6DyxLzVs7zzezz7szzxLzwDzzzezzsTzbxLzzszbzezzzkXzxLzzzzzzfTzzzzzzQ000000vzzzzzzzSnk0008I"
 
 ClickMode := ""         ; "" = 未运行，"both" = 两种同时，"right" = 仅右键（抽奖），"two" = 仅两点点击（合成）
-CountdownActive := false  ; 开启功能 1/2 前的倒计时是不是正在进行（防重复触发）
 TwoRunning := false
 TwoPhase := 0
 WaitAfterFirst := 1000    ; 点 1 后等，固定值
@@ -237,7 +236,7 @@ MinimizeThenCall(Func) {
 HelpShown := false
 HelpText := "使用说明"
     . "`n`n【功能 1：桌面轮询】"
-    . "`nF11 或点「开始：桌面轮询」启动，三个桌面一直轮询。开启时先在光标旁倒计时 3、2、1，数完才开始。"
+    . "`nF11 或点「开始：桌面轮询」启动，三个桌面一直轮询。"
     . "`n切到每个桌面后自动激活游戏窗口，检查放映机图标和状态图标："
     . "`n放映机在、状态是暗色就点状态图标；放映机在、非暗色就只按 X；"
     . "`n其他情况按 F，放映机在才按 X。"
@@ -246,7 +245,7 @@ HelpText := "使用说明"
     . "`n点「箱子位置」「自动放入」「开始精炼」取点（窗口会最小化，"
     . "`n在屏幕上点一下位置，按 Esc 取消）。"
     . "`n三种模式三选一：两种点击同时操作 / 抽奖（只右键）/ 合成（只两点）。"
-    . "`nF12 或点模式按钮开启/暂停，开启时先在光标旁倒计时 3、2、1，数完才开始。"
+    . "`nF12 开启/暂停。"
     . "`n`n【功能 3：快捷切换桌面】"
     . "`n点「开始：快捷切换」或按飘号键（键盘左上角 1 左边那个键）开启，"
     . "`nF1/F2/F3 切到桌面 1/2/3，切过去后自动点选游戏窗口。"
@@ -386,27 +385,6 @@ StopDesktopPolling() {
     txtDesktopStatus.Text := "状态：已停止"
 }
 
-; 开启功能 1（轮询）/ 功能 2（开箱子）前先倒计时：在光标旁显示
-; 3、2、1（各 1 秒），数完才真正开始，不立即开始。
-; 倒计时进行中再点开启会被忽略（CountdownActive 守卫）。
-; 返回 true = 倒计时完成、可以开始；false = 正在倒计时、本次忽略。
-StartCountdown() {
-    global CountdownActive
-    if (CountdownActive) {
-        return false
-    }
-    CountdownActive := true
-    Loop 3 {
-        N := 4 - A_Index
-        MouseGetPos(&mx, &my)
-        ToolTip(N, mx + 25, my + 10)
-        Sleep(1000)
-    }
-    ToolTip()
-    CountdownActive := false
-    return true
-}
-
 ToggleDesktop(*) {
     global DesktopRunning, DesktopPhase, DesktopWaitMs, DesktopKey, SwitchClickX, SwitchClickY
     global btnDesktop, txtDesktopStatus
@@ -416,10 +394,6 @@ ToggleDesktop(*) {
     if (DesktopRunning) {
         StopDesktopPolling()
         ToolTip()
-        return
-    }
-    ; 开启前先倒计时 3、2、1（光标处显示），数完才开始。
-    if (!StartCountdown()) {
         return
     }
     ; 启动轮询前先停掉另外两个功能（开箱子、快捷切换）。
@@ -1087,10 +1061,6 @@ ToggleBoth(*) {
         ToolTip()
         return
     }
-    ; 开启前先倒计时 3、2、1（光标处显示），数完才开始。
-    if (!StartCountdown()) {
-        return
-    }
     StopClickLoops()
     StopDesktopPolling()
     StopQuickSwitch()
@@ -1111,10 +1081,6 @@ ToggleRightOnly(*) {
         ToolTip()
         return
     }
-    ; 开启前先倒计时 3、2、1（光标处显示），数完才开始。
-    if (!StartCountdown()) {
-        return
-    }
     StopClickLoops()
     StopDesktopPolling()
     StopQuickSwitch()
@@ -1130,10 +1096,6 @@ ToggleSynth(*) {
     if (ClickMode = "two") {
         StopClickLoops()
         ToolTip()
-        return
-    }
-    ; 开启前先倒计时 3、2、1（光标处显示），数完才开始。
-    if (!StartCountdown()) {
         return
     }
     StopClickLoops()
