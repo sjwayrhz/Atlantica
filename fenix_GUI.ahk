@@ -250,7 +250,7 @@ HelpText := "使用说明"
     . "`n点「开始」后 2 秒，三个桌面的游戏窗口位置调成一样。"
     . "`nF5 录鼠标+键盘+滚轮，F4 回放：点一下回放 1 次，"
     . "`n按住约 2 秒是无限回放，再按 F4 停。"
-    . "`n已保存的录制：下拉框输名字点保存，选一个点读取或按 F10（读完 F4 回放），点删除删掉。"
+    . "`n已保存的录制：下拉框输名字点保存，选一个点读取或按 F10 就直接回放，点删除删掉。"
     . "`n`n【通用】"
     . "`n三个功能一次只能跑一个，启动一个会自动停掉另外两个。"
     . "`n点「全部停止」停掉三个功能（不退出）。"
@@ -260,11 +260,11 @@ ToggleHelp(*) {
     global HelpShown, MyGui, txtHelp
     if (HelpShown) {
         txtHelp.Visible := false
-        MyGui.Show("w380 h480")
+        MyGui.Show("w380 h470")
         HelpShown := false
     } else {
         txtHelp.Visible := true
-        MyGui.Show("w700 h480")
+        MyGui.Show("w700 h470")
         HelpShown := true
     }
 }
@@ -306,29 +306,28 @@ btnQuickStop := MyGui.Add("Button", "x195 y282 w175 h30", "停止")
 btnQuickStop.OnEvent("Click", MinimizeAndRun(StopQuickSwitch))
 btnQuickStop.Enabled := false
 txtQuickStatus := MyGui.Add("Text", "x10 y322 w360", "状态：未录制")
-MyGui.Add("Text", "x10 y347 w360 h2 +0x1000")
 
 ; ---- 已保存的录制 ----
 ; 录制存在脚本目录下的 records 文件夹里，一个录制一个文件，文件名就是录制的名字。
 ; 下拉框里可以直接输新名字（点保存就是存成这个名字），也可以选已有的名字（点读取、删除）。
-MyGui.Add("Text", "x10 y357 w360", "已保存的录制")
-cmbRecords := MyGui.Add("ComboBox", "x10 y382 w170", [])
-btnSaveRecord := MyGui.Add("Button", "x185 y382 w45 h30", "保存")
+MyGui.Add("Text", "x10 y347 w360", "已保存的录制")
+cmbRecords := MyGui.Add("ComboBox", "x10 y372 w170", [])
+btnSaveRecord := MyGui.Add("Button", "x185 y372 w45 h30", "保存")
 btnSaveRecord.OnEvent("Click", MinimizeAndRun(SaveRecord))
-btnLoadRecord := MyGui.Add("Button", "x235 y382 w85 h30", "读取(F10)")
+btnLoadRecord := MyGui.Add("Button", "x235 y372 w85 h30", "读取(F10)")
 btnLoadRecord.OnEvent("Click", MinimizeAndRun(LoadRecord))
-btnDeleteRecord := MyGui.Add("Button", "x325 y382 w45 h30", "删除")
+btnDeleteRecord := MyGui.Add("Button", "x325 y372 w45 h30", "删除")
 btnDeleteRecord.OnEvent("Click", MinimizeAndRun(DeleteRecord))
-MyGui.Add("Text", "x10 y422 w360 h2 +0x1000")
+MyGui.Add("Text", "x10 y412 w360 h2 +0x1000")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y432 w86 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y422 w86 h30", "全部停止")
 btnStopAll.OnEvent("Click", MinimizeAndRun(StopAll))
-btnSaveConfig := MyGui.Add("Button", "x101 y432 w86 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x101 y422 w86 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", MinimizeAndRun(SaveConfig))
-btnHelp := MyGui.Add("Button", "x192 y432 w86 h30", "使用说明")
+btnHelp := MyGui.Add("Button", "x192 y422 w86 h30", "使用说明")
 btnHelp.OnEvent("Click", ToggleHelp)
-btnExit := MyGui.Add("Button", "x283 y432 w86 h30", "退出")
+btnExit := MyGui.Add("Button", "x283 y422 w86 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 ; 使用说明面板（窗口右侧，平时藏着，点「使用说明」才展开显示）。
 txtHelp := MyGui.Add("Edit", "x390 y10 w300 h460 +ReadOnly +Multi +VScroll", HelpText)
@@ -363,7 +362,7 @@ if (DesktopCount < 1) {
 UpdateClickPosText()
 RefreshRecordList()
 
-MyGui.Show("w380 h480")
+MyGui.Show("w380 h470")
 
 ; ===== 功能 1：桌面轮询 =====
 ; F11 或点按钮启动：一直轮询，直到再按 F11 或再点按钮停掉。
@@ -1669,7 +1668,9 @@ LoadRecord(*) {
     }
     RecordEvents := NewEvents
     LoadedRecordName := Name
-    txtQuickStatus.Text := "状态：已读取「" Name "」，共 " RecordEvents.Length " 个动作，按 F4 回放"
+    txtQuickStatus.Text := "状态：已读取「" Name "」，共 " RecordEvents.Length " 个动作，开始回放"
+    ; 读进来就直接回放一次，不用再按 F4。
+    PlayRecording(1)
 }
 
 ; 删除：删掉下拉框里选中的文件（内存里的录制还在，按 F4 还能回放）。
