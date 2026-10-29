@@ -856,11 +856,10 @@ StepDesktop() {
 ; 状态没找到（not found）。
 ;   1. 放映机图标在、并且是非暗色：只按 X，不按 F，不点。
 ;   2. 未知：按 F；放映机图标在，才在约 0.05 秒后按 X；不点图标。
-;   3. 暗色：按 F；放映机图标在，才在约 0.05 秒后按 X；
-;      放映机图标在，才点状态图标一下，尝试帮它变亮色；
-;      点完下轮再来检查，不单独验证。
-;   4. 状态没找到：放映机图标在时，按 F、按 X，点一下记下的
-;      状态图标位置（有记下位置才点）；放映机不在就只按 F。
+;   3. 暗色 + 放映机在：发现就马上点状态图标一下（在按 F 之前点），
+;      点完再判断一次：变非暗色就只按 X、不按 F；还是暗色就按 F，
+;      再在约 0.05 秒后按 X。放映机不在的暗色：不点，只按 F。
+;   4. 状态没找到：按 F；放映机图标在，才在约 0.05 秒后按 X；不点。
 MainCheckStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey, DesktopKey2, KeyGapMs
     global CheckProjFound, CheckStatusNotFound
@@ -910,10 +909,36 @@ MainCheckStep() {
     }
     ; 暗色 + 放映机在：发现就马上点（按 F 之前点，点的是这次刚找到的位置；
     ; 按 F 可能过图，等 0.05 秒后再点位置就变了）。
+    ; 点完再判断一次：点完变成非暗色（亮色）就不按 F 了（只按 X）；
+    ; 还是暗色就照常往下按 F。
     if (ProjFound && DarkFound) {
         ClickStatusIcon(DX, DY)
         LogFind("D" Idx " dark found, clicked immediately")
         ToolTip("Desktop " Idx ": projector yes, dark, clicked immediately")
+        ; 点完重新找一次状态，判断现在是不是非暗色（亮色）。
+        DX2 := 0
+        DY2 := 0
+        StillDark := FindDark(Idx, &DX2, &DY2)
+        NowBright := false
+        if (!StillDark) {
+            UX2 := 0
+            UY2 := 0
+            if (!FindUnknown(Idx, &UX2, &UY2)) {
+                BX2 := 0
+                BY2 := 0
+                NowBright := FindBright(Idx, &BX2, &BY2)
+            }
+        }
+        if (NowBright) {
+            ; 点完变非暗色：只按 X，不按 F。
+            Send(DesktopKey2)
+            LogFind("D" Idx " dark clicked, now non-dark, X only, no F")
+            ToolTip("Desktop " Idx ": dark clicked, now non-dark, X only, no F")
+            DesktopPhase := "switch"
+            SetTimer(StepDesktop, DesktopWaitMs)
+            return
+        }
+        LogFind("D" Idx " dark clicked, still dark, press F")
     }
     if (ProjFound && !DarkFound && !UnknownFound && !CheckStatusNotFound) {
         ; 放映机图标在、并且是非暗色（亮色）：只按 X，不按 F，不点。
