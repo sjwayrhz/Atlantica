@@ -131,6 +131,8 @@ RecordLastTick := 0       ; 上一个录下来的动作是什么时候（A_TickC
 RecordLastL := false      ; 上次轮询时左键是不是按着
 RecordLastR := false      ; 上次轮询时右键是不是按着
 PlayingBack := false      ; 是不是正在回放
+RecordsDir := A_ScriptDir "\records"  ; 保存的录制文件夹，一个录制一个 .txt 文件
+LoadedRecordName := ""  ; 当前内存里的录制是从哪个文件读来的（空表示刚录的、没保存）
 ; 录键盘时要轮询的按键（脚本自己的热键 F1-F5、F8、F9、F11、F12、飘号键不录，
 ; 免得录进去又触发脚本功能）。字母、数字、空格、回车、Tab、Esc、退格、
 ; 左右 Shift/Ctrl/Alt、方向键、F6/F7、小键盘。
@@ -258,12 +260,25 @@ btnQuickStop.Enabled := false
 txtQuickStatus := MyGui.Add("Text", "x10 y322 w360", "状态：未录制")
 MyGui.Add("Text", "x10 y347 w360 h2 +0x1000")
 
+; ---- 已保存的录制 ----
+; 录制存在脚本目录下的 records 文件夹里，一个录制一个文件，文件名就是录制的名字。
+; 下拉框里可以直接输新名字（点保存就是存成这个名字），也可以选已有的名字（点读取、删除）。
+MyGui.Add("Text", "x10 y357 w360", "已保存的录制")
+cmbRecords := MyGui.Add("ComboBox", "x10 y382 w170", [])
+btnSaveRecord := MyGui.Add("Button", "x190 y382 w55 h30", "保存")
+btnSaveRecord.OnEvent("Click", SaveRecord)
+btnLoadRecord := MyGui.Add("Button", "x250 y382 w55 h30", "读取")
+btnLoadRecord.OnEvent("Click", LoadRecord)
+btnDeleteRecord := MyGui.Add("Button", "x310 y382 w55 h30", "删除")
+btnDeleteRecord.OnEvent("Click", DeleteRecord)
+MyGui.Add("Text", "x10 y422 w360 h2 +0x1000")
+
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y357 w115 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y432 w115 h30", "全部停止")
 btnStopAll.OnEvent("Click", StopAll)
-btnSaveConfig := MyGui.Add("Button", "x132 y357 w115 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x132 y432 w115 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", SaveConfig)
-btnExit := MyGui.Add("Button", "x254 y357 w115 h30", "退出")
+btnExit := MyGui.Add("Button", "x254 y432 w115 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 MyGui.OnEvent("Close", (*) => ExitApp())
 
@@ -293,8 +308,9 @@ if (DesktopCount < 1) {
 }
 
 UpdateClickPosText()
+RefreshRecordList()
 
-MyGui.Show("w380 h457")
+MyGui.Show("w380 h480")
 
 ; ===== 功能 1：桌面轮询 =====
 ; F11 或点按钮启动：一直轮询，直到再按 F11 或再点按钮停掉。
@@ -1327,7 +1343,7 @@ RecordWheel(Direction) {
 
 ; 5 键：回放中按一下停回放；不回放时按一下开始/停止录制。
 ToggleRecord(*) {
-    global Recording, RecordEvents, RecordLastTick, RecordLastL, RecordLastR, PlayingBack, KeysToRecord, KeyPrevState, txtQuickStatus
+    global Recording, RecordEvents, RecordLastTick, RecordLastL, RecordLastR, PlayingBack, KeysToRecord, KeyPrevState, LoadedRecordName, txtQuickStatus
     if (PlayingBack) {
         PlayingBack := false
         ShowTempToolTip("回放已停止")
@@ -1340,6 +1356,7 @@ ToggleRecord(*) {
         ShowTempToolTip("已录制 " RecordEvents.Length " 个动作，按 F4 回放")
     } else {
         RecordEvents := []
+        LoadedRecordName := ""
         RecordLastTick := A_TickCount
         RecordLastL := GetKeyState("LButton", "P")
         RecordLastR := GetKeyState("RButton", "P")
@@ -1474,6 +1491,153 @@ PlayRecording(Count) {
         }
     }
     ; 中途停掉的，F4/F5 那边已经显示了「回放已停止」，这里不碰提示。
+}
+
+; ===== 已保存的录制 =====
+; 一个录制一个文件，存在脚本目录下的 records 文件夹里，文件名就是录制的名字。
+; 文件里一行一个动作：类型,参数1,参数2,间隔（和内存里的 RecordEvents 对应）。
+; 鼠标/滚轮：LDown/LUp/RDown/RUp/WheelUp/WheelDown,X,Y,间隔
+; 键盘：KDown/KUp,按键名,0,间隔
+
+; 刷新下拉框里的录制列表（读 records 文件夹里的 .txt 文件名）。
+RefreshRecordList() {
+    global cmbRecords, RecordsDir
+    cmbRecords.Delete()
+    if (!DirExist(RecordsDir)) {
+        return
+    }
+    Loop Files, RecordsDir "\*.txt" {
+        Name := SubStr(A_LoopFileName, 1, -4)
+        cmbRecords.Add([Name])
+    }
+}
+
+; 保存：把当前内存里的录制写成文件。名字从下拉框里输（新名字就是新建，
+; 已有的名字会问要不要覆盖）。
+SaveRecord(*) {
+    global RecordEvents, RecordsDir, cmbRecords, txtQuickStatus, LoadedRecordName
+    if (RecordEvents.Length = 0) {
+        MsgBox("没有录制内容，先按 F5 录一段。", "保存录制", "OK Icon!")
+        return
+    }
+    Name := Trim(cmbRecords.Text)
+    if (Name = "") {
+        MsgBox("先在下拉框里输一个名字，再点保存。", "保存录制", "OK Icon!")
+        return
+    }
+    if (RegExMatch(Name, '[\\/:*?"<>|]')) {
+        MsgBox("名字里不能有 \ / : * ? `" < > | 这些字符。", "保存录制", "OK Icon!")
+        return
+    }
+    DirCreate(RecordsDir)
+    Path := RecordsDir "\" Name ".txt"
+    if (FileExist(Path)) {
+        Result := MsgBox("已经有叫「" Name "」的录制了，要覆盖吗？", "保存录制", "YesNo Icon?")
+        if (Result = "No") {
+            return
+        }
+    }
+    Text := ""
+    for Ev in RecordEvents {
+        Text .= Ev[1] "," Ev[2] "," Ev[3] "," Ev[4] "`n"
+    }
+    try {
+        if (FileExist(Path)) {
+            FileDelete(Path)
+        }
+        FileAppend(Text, Path, "UTF-8")
+    } catch as Err {
+        MsgBox("保存失败：" Err.Message, "保存录制", "OK Icon!")
+        return
+    }
+    LoadedRecordName := Name
+    RefreshRecordList()
+    cmbRecords.Text := Name
+    txtQuickStatus.Text := "状态：已保存「" Name "」，共 " RecordEvents.Length " 个动作"
+}
+
+; 读取：把下拉框里选中的文件读进内存，按 F4 就能回放，不用再录。
+LoadRecord(*) {
+    global RecordEvents, RecordsDir, cmbRecords, txtQuickStatus, LoadedRecordName, Recording, PlayingBack
+    if (Recording || PlayingBack) {
+        MsgBox("正在录制或回放，先停掉再读取。", "读取录制", "OK Icon!")
+        return
+    }
+    Name := Trim(cmbRecords.Text)
+    if (Name = "") {
+        MsgBox("先在下拉框里选一个录制，或者输一个已有的名字。", "读取录制", "OK Icon!")
+        return
+    }
+    Path := RecordsDir "\" Name ".txt"
+    if (!FileExist(Path)) {
+        MsgBox("没有叫「" Name "」的录制。", "读取录制", "OK Icon!")
+        return
+    }
+    try {
+        Text := FileRead(Path, "UTF-8")
+    } catch as Err {
+        MsgBox("读取失败：" Err.Message, "读取录制", "OK Icon!")
+        return
+    }
+    NewEvents := []
+    Loop Parse, Text, "`n", "`r" {
+        Line := Trim(A_LoopField)
+        if (Line = "") {
+            continue
+        }
+        Parts := StrSplit(Line, ",")
+        if (Parts.Length < 4) {
+            continue
+        }
+        Type := Parts[1]
+        try {
+            if (Type = "LDown" || Type = "LUp" || Type = "RDown" || Type = "RUp" || Type = "WheelUp" || Type = "WheelDown") {
+                NewEvents.Push([Type, Integer(Parts[2]), Integer(Parts[3]), Integer(Parts[4])])
+            } else if (Type = "KDown" || Type = "KUp") {
+                NewEvents.Push([Type, Parts[2], 0, Integer(Parts[4])])
+            }
+        } catch {
+            continue
+        }
+    }
+    if (NewEvents.Length = 0) {
+        MsgBox("「" Name "」里没有有效的动作。", "读取录制", "OK Icon!")
+        return
+    }
+    RecordEvents := NewEvents
+    LoadedRecordName := Name
+    txtQuickStatus.Text := "状态：已读取「" Name "」，共 " RecordEvents.Length " 个动作，按 F4 回放"
+}
+
+; 删除：删掉下拉框里选中的文件（内存里的录制还在，按 F4 还能回放）。
+DeleteRecord(*) {
+    global RecordsDir, cmbRecords, LoadedRecordName
+    Name := Trim(cmbRecords.Text)
+    if (Name = "") {
+        MsgBox("先在下拉框里选一个录制。", "删除录制", "OK Icon!")
+        return
+    }
+    Path := RecordsDir "\" Name ".txt"
+    if (!FileExist(Path)) {
+        MsgBox("没有叫「" Name "」的录制。", "删除录制", "OK Icon!")
+        return
+    }
+    Result := MsgBox("确定要删除「" Name "」吗？", "删除录制", "YesNo Icon?")
+    if (Result = "No") {
+        return
+    }
+    try {
+        FileDelete(Path)
+    } catch as Err {
+        MsgBox("删除失败：" Err.Message, "删除录制", "OK Icon!")
+        return
+    }
+    if (LoadedRecordName = Name) {
+        LoadedRecordName := ""
+    }
+    cmbRecords.Text := ""
+    RefreshRecordList()
+    ShowTempToolTip("已删除「" Name "」")
 }
 
 ; ===== 快捷键 =====
