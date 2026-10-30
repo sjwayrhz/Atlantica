@@ -1177,9 +1177,11 @@ UpdatePauseButton() {
     }
 }
 
-; 把其他桌面上的游戏窗口位置和大小调成和当前桌面一样。
-; 这样录的鼠标坐标换桌面也能用。找不到当前桌面的游戏窗口
-; 就什么都不做。窗口可能不在，找不到就跳过，不报错。
+; 把三个桌面上的游戏窗口都挪到屏幕正中间。
+; 屏幕分辨率用主显示器的（A_ScreenWidth / A_ScreenHeight），
+; 每个窗口按它自己的宽高算中心，大小不变。
+; 这样录的鼠标坐标换桌面也能用。窗口可能不在，
+; 找不到就跳过，不报错。
 AlignGameWindows() {
     global GameTitle, GetWindowDesktopNumberProc, GetCurrentDesktopNumberProc
     LogFind("align: started")
@@ -1194,55 +1196,37 @@ AlignGameWindows() {
         LogFind("align: exception getting desktop/window list: " Err.Message)
         return
     }
-    LogFind("align: current desktop=" CurrentDesk ", windows found=" WinList.Length)
+    ScreenW := A_ScreenWidth
+    ScreenH := A_ScreenHeight
+    LogFind("align: current desktop=" CurrentDesk ", windows found=" WinList.Length ", screen=" ScreenW "x" ScreenH)
     if (WinList.Length = 0) {
         LogFind("align: no game window found")
         return
     }
-    RefX := 0
-    RefY := 0
-    RefW := 0
-    RefH := 0
-    Found := false
     for hWnd in WinList {
         try {
             Desk := DllCall(GetWindowDesktopNumberProc, "Ptr", hWnd, "Int")
         } catch as Err {
             LogFind("align: GetWindowDesktopNumber failed for hwnd=" hWnd ": " Err.Message)
-            continue
+            Desk := -1
         }
-        LogFind("align: hwnd=" hWnd " is on desktop " Desk)
-        if (Desk = CurrentDesk) {
-            try {
-                WinGetPos(&RefX, &RefY, &RefW, &RefH, "ahk_id " hWnd)
-                Found := true
-                LogFind("align: reference window hwnd=" hWnd " at (" RefX "," RefY " " RefW "x" RefH ")")
-            } catch as Err {
-                LogFind("align: WinGetPos failed for hwnd=" hWnd ": " Err.Message)
-            }
-            break
-        }
-    }
-    if (!Found) {
-        LogFind("align: no game window on current desktop")
-        return
-    }
-    for hWnd in WinList {
         try {
-            Desk := DllCall(GetWindowDesktopNumberProc, "Ptr", hWnd, "Int")
+            WinGetPos(&WinX, &WinY, &WinW, &WinH, "ahk_id " hWnd)
         } catch as Err {
-            LogFind("align: GetWindowDesktopNumber failed for hwnd=" hWnd ": " Err.Message)
+            LogFind("align: WinGetPos failed for hwnd=" hWnd ": " Err.Message)
             continue
         }
-        if (Desk != CurrentDesk) {
-            try {
-                WinMove(RefX, RefY, RefW, RefH, "ahk_id " hWnd)
-                LogFind("align: moved hwnd=" hWnd " (desktop " Desk ") to (" RefX "," RefY " " RefW "x" RefH ")")
-            } catch as Err {
-                LogFind("align: WinMove failed for hwnd=" hWnd ": " Err.Message)
-            }
-        } else {
-            LogFind("align: hwnd=" hWnd " already on current desktop, skip")
+        NewX := (ScreenW - WinW) // 2
+        NewY := (ScreenH - WinH) // 2
+        if (NewX < 0)
+            NewX := 0
+        if (NewY < 0)
+            NewY := 0
+        try {
+            WinMove(NewX, NewY, WinW, WinH, "ahk_id " hWnd)
+            LogFind("align: centered hwnd=" hWnd " (desktop " Desk ") from (" WinX "," WinY " " WinW "x" WinH ") to (" NewX "," NewY ")")
+        } catch as Err {
+            LogFind("align: WinMove failed for hwnd=" hWnd ": " Err.Message)
         }
     }
     LogFind("align: done")
@@ -1292,7 +1276,7 @@ StartQuickSwitch(*) {
     btnQuickStart.Enabled := false
     btnQuickStop.Enabled := true
     ShowTempToolTip("快捷切换已开启")
-    ; 2 秒后把其他两个桌面上的游戏窗口位置调成和当前桌面一样，
+    ; 2 秒后把三个桌面上的游戏窗口都挪到屏幕正中间，
     ; 这样录的鼠标坐标换桌面也能用。
     LogFind("quickswitch: started, align timer set (2s)")
     SetTimer(AlignGameWindows, -2000)
