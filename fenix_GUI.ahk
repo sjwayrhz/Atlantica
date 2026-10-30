@@ -69,8 +69,8 @@ DetectHiddenWindows(true)
 ;      再点一次正在运行的按钮就是停止。
 ; 使用：双击运行本脚本，点按钮或按快捷键即可。
 ;       F11 开关桌面轮询，F12 开关开箱子。
-;       桌面轮询只有开始和暂停两个按钮，参数
-;       直接写死在代码里。开箱子的坐标用按钮取点（窗口会最小化，
+;       桌面轮询有开始和暂停两个按钮，中间有个
+;       「使用女神的生命水」勾选框；参数直接写死在代码里。开箱子的坐标用按钮取点（窗口会最小化，
 ;       在屏幕上点一下就行），点“保存配置”会存到同目录的
 ;       fenix_Config.ini，下次打开自动恢复。
 ;       关窗口或点“退出”即全部停止并退出。
@@ -150,6 +150,7 @@ CalStatusY := []
 CalProjX := []          ; 放映机图标中心
 CalProjY := []
 CheckProjFound := false ; 这轮检查：放映机图标在不在（check 步记下，pressX 步用）
+LifeWaterUsed := [false, false, false] ; 女神的生命水：每个桌面（下标 1..3）有没有记过「已使用」
 CheckStatusNotFound := false ; 这轮检查：状态图标是不是都没找到（check 步记下，pressX 步用）
 
 ; ===== 图标图案（功能 1 用，FindText）=====
@@ -234,6 +235,7 @@ MinimizeThenCall(Func) {
 HelpShown := false
 HelpText := "快捷键说明"
     . "`n`nF11：开始 / 停止「桌面轮询」"
+    . "`n「使用女神的生命水」勾选框（在轮询的开始和暂停中间，勾上才生效）：轮询到某个桌面没找到放映机图标、且这个桌面还没用过生命水，就按一次 F9 并记为已用过；之后再轮询到还是没放映机，不再按；等轮询到这个桌面又有放映机了，标记改回未用过，下次没放映机时再按 F9。三个桌面各记各的。"
     . "`nF12：开始 / 暂停「开箱子」"
     . "`n飘号键（1 左边）：开启 / 关闭「快捷切换」"
     . "`nF1 / F2 / F3：切到桌面 1 / 2 / 3（快捷切换开启时才管用）"
@@ -255,9 +257,10 @@ ToggleHelp(*) {
 
 ; ---- 功能 1：桌面轮询 ----
 MyGui.Add("Text", "x10 y10 w360", "1. 桌面轮询 (F11)")
-btnDesktop := MyGui.Add("Button", "x10 y35 w175 h30", "开始：桌面轮询")
+btnDesktop := MyGui.Add("Button", "x10 y35 w100 h30", "开始")
 btnDesktop.OnEvent("Click", MinimizeAndRun(ToggleDesktop))
-btnDesktopPause := MyGui.Add("Button", "x195 y35 w175 h30", "暂停")
+chkLifeWater := MyGui.Add("CheckBox", "x115 y35 w150 h30", "使用女神的生命水")
+btnDesktopPause := MyGui.Add("Button", "x270 y35 w100 h30", "暂停")
 btnDesktopPause.OnEvent("Click", MinimizeAndRun(ToggleManualPause))
 txtDesktopStatus := MyGui.Add("Text", "x10 y70 w360", "状态：未运行")
 MyGui.Add("Text", "x10 y90 w360 h2 +0x1000")
@@ -362,7 +365,7 @@ StopDesktopPolling() {
     DesktopRunning := false
     CyclePhase := ""
     SetTimer(StepDesktop, 0)
-    btnDesktop.Text := "开始：桌面轮询"
+    btnDesktop.Text := "开始"
     txtDesktopStatus.Text := "状态：已停止"
 }
 
@@ -402,7 +405,7 @@ ToggleDesktop(*) {
     DesktopNext := 0
     CurrentDesktop := 0
     StartCyclePhase("main")
-    btnDesktop.Text := "停止：桌面轮询"
+    btnDesktop.Text := "停止"
     StepDesktop()
 }
 
@@ -834,6 +837,9 @@ StepDesktop() {
 ;      还是暗色就按 F，再在约 0.05 秒后按 X。
 ;      放映机不在的暗色：不点，只按 F。
 ;   4. 状态没找到：按 F；放映机图标在，才在约 0.05 秒后按 X；不点。
+;   5. 女神的生命水（勾选框勾上才生效，本轮动作做完后判断一次）：
+;      放映机不在、且这个桌面还没记过已使用，就按 F9 并记已使用；
+;      放映机在，就把标记改回未使用。见 ApplyLifeWaterRule。
 MainCheckStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey, DesktopKey2, KeyGapMs
     global CheckProjFound, CheckStatusNotFound
@@ -899,6 +905,7 @@ MainCheckStep() {
                 Send(DesktopKey2)
                 LogFind("D" Idx " dark clicked, now non-dark, X only, no F")
                 ToolTip("Desktop " Idx ": dark clicked, now non-dark, X only, no F")
+                ApplyLifeWaterRule(Idx)
                 DesktopPhase := "switch"
                 SetTimer(StepDesktop, DesktopWaitMs)
                 return
@@ -910,6 +917,7 @@ MainCheckStep() {
         ; 放映机图标在、并且是非暗色（亮色）：只按 X，不按 F，不点。
         Send(DesktopKey2)
         ToolTip("Desktop " Idx ": projector yes, non-dark, X only, no F, no click")
+        ApplyLifeWaterRule(Idx)
         DesktopPhase := "switch"
         SetTimer(StepDesktop, DesktopWaitMs)
         return
@@ -918,6 +926,37 @@ MainCheckStep() {
     Send(DesktopKey)
     DesktopPhase := "pressX"
     SetTimer(StepDesktop, KeyGapMs)
+}
+
+; 女神的生命水（功能 1 的附带规则，「使用女神的生命水」勾选框
+; 勾上才生效；不勾，这个函数第一行就返回，什么都不做）：
+; 本轮轮询到这个桌面，放映机图标不在、而且这个桌面还没记过
+; 「已使用」，就按一下 F9（用一次生命水）并记成已使用；之后
+; 再轮询到、放映机还是不在，标记不变、不再按；等轮询到这个
+; 桌面放映机图标在了，就把标记改回未使用，下次不在时再按 F9。
+; 三个桌面各记各的（LifeWaterUsed 下标 1..3）。标记只在这次
+; 运行里记着，脚本重开就回到全未使用。
+; 在本轮动作都做完、要切走之前调用（MainCheckStep 的两个提前
+; 返回处和 PressXStep 的两个结尾处各调一次，每轮只会走到一处）。
+ApplyLifeWaterRule(Idx) {
+    global chkLifeWater, LifeWaterUsed, CheckProjFound
+    if (!chkLifeWater.Value) {
+        return
+    }
+    while (LifeWaterUsed.Length < Idx) {
+        LifeWaterUsed.Push(false)
+    }
+    if (CheckProjFound) {
+        if (LifeWaterUsed[Idx]) {
+            LifeWaterUsed[Idx] := false
+            LogFind("D" Idx " lifewater: projector yes, mark cleared (unused)")
+        }
+    } else if (!LifeWaterUsed[Idx]) {
+        Send("{F9}")
+        LifeWaterUsed[Idx] := true
+        LogFind("D" Idx " lifewater: projector no, pressed F9, marked used")
+        ToolTip("Desktop " Idx ": projector no, pressed F9 (life water)")
+    }
 }
 
 ; 按 X（轮询检查的下一步，约 0.05 秒后）。
@@ -929,12 +968,14 @@ PressXStep() {
     if (!CheckProjFound) {
         ; 放映机图标不在：不按 X（只按了 F）。
         ToolTip("Desktop " Idx ": projector no, no X")
+        ApplyLifeWaterRule(Idx)
         DesktopPhase := "switch"
         SetTimer(StepDesktop, DesktopWaitMs)
         return
     }
     Send(DesktopKey2)   ; 放映机图标在，才按 X
     ToolTip("Desktop " Idx ": projector yes, X pressed")
+    ApplyLifeWaterRule(Idx)
     DesktopPhase := "switch"
     SetTimer(StepDesktop, DesktopWaitMs)
 }
