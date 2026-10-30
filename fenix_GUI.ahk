@@ -124,7 +124,7 @@ CyclePhase := "main"
 CycleCount := 0
 CurrentDesktop := 0
 ManualPaused := false   ; 手动暂停的开关
-QuickSwitchEnabled := false ; 快捷切换桌面（键盘 F1/F2/F3）的开关，默认关
+QuickSwitchEnabled := false ; 快捷切换桌面（键盘 F1/F2/F3）的开关；打开脚本时默认开启（自动执行段末尾调 StartQuickSwitch）
 Recording := false        ; 是不是正在录鼠标
 RecordEvents := []        ; 录下来的鼠标动作，每条是 [类型, X, Y, 间隔毫秒]
 RecordLastTick := 0       ; 上一个录下来的动作是什么时候（A_TickCount）
@@ -350,6 +350,13 @@ UpdateClickPosText()
 RefreshRecordList()
 
 MyGui.Show("w380 h470")
+
+; 打开脚本时默认开启功能 3（快捷切换）：和点「开始」按钮走
+; 同一条路，开启后 2 秒还会把三个桌面的游戏窗口居中。
+; DLL 加载失败时不开启（开始按钮已被禁用，功能也用不了）。
+if (DesktopCount >= 1) {
+    StartQuickSwitch()
+}
 
 ; ===== 功能 1：桌面轮询 =====
 ; F11 或点按钮启动：一直轮询，直到再按 F11 或再点按钮停掉。
@@ -1699,7 +1706,7 @@ F11::ToggleDesktop()
 F12::ToggleClickHotkey()
 SC029::ToggleQuickSwitch()
 
-; 快捷切换桌面的键盘：只在开关打开时生效（默认关），
+; 快捷切换桌面的键盘：只在开关打开时生效（打开脚本时默认开），
 ; 关了 F1/F2/F3 就是正常的功能键，不会切桌面。
 #HotIf QuickSwitchEnabled
 F1::GoToDesktop(0)
