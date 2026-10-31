@@ -70,7 +70,7 @@ DetectHiddenWindows(true)
 ; 使用：双击运行本脚本，点按钮或按快捷键即可。
 ;       F11 开关桌面轮询，F12 开关开箱子。
 ;       桌面轮询有开始和暂停两个按钮，中间有个
-;       「使用女神的生命水」勾选框；参数直接写死在代码里。开箱子的坐标用按钮取点（窗口会最小化，
+;       「使用女神的生命水」勾选框，右边是冷却分钟下拉框；参数直接写死在代码里。开箱子的坐标用按钮取点（窗口会最小化，
 ;       在屏幕上点一下就行），点“保存配置”会存到同目录的
 ;       fenix_Config.ini，下次打开自动恢复。
 ;       关窗口或点“退出”即全部停止并退出。
@@ -151,6 +151,7 @@ CalProjX := []          ; 放映机图标中心
 CalProjY := []
 CheckProjFound := false ; 这轮检查：放映机图标在不在（check 步记下，pressX 步用）
 LifeWaterUsed := [false, false, false] ; 女神的生命水：每个桌面（下标 1..3）有没有记过「已使用」
+LifeWaterPressTick := [0, 0, 0] ; 女神的生命水：每个桌面上次按 F9 的时刻（A_TickCount，0=没按过），给冷却下拉框计时用
 CheckStatusNotFound := false ; 这轮检查：状态图标是不是都没找到（check 步记下，pressX 步用）
 
 ; ===== 图标图案（功能 1 用，FindText）=====
@@ -235,7 +236,7 @@ MinimizeThenCall(Func) {
 HelpShown := false
 HelpText := "快捷键说明"
     . "`n`nF11：开始 / 停止「桌面轮询」"
-    . "`n「使用女神的生命水」勾选框（在轮询的开始和暂停中间，勾上才生效）：轮询到某个桌面没找到放映机图标、且这个桌面还没用过生命水，就按一次 F9 并记为已用过；之后再轮询到还是没放映机，不再按；等轮询到这个桌面又有放映机了，标记改回未用过，下次没放映机时再按 F9。三个桌面各记各的。"
+    . "`n「使用女神的生命水」勾选框（在轮询的开始和暂停中间，勾上才生效）：轮询到某个桌面没找到放映机图标、且这个桌面还没用过生命水，就按一次 F9 并记为已用过；之后再轮询到还是没放映机，不再按；等轮询到这个桌面又有放映机了，标记改回未用过，下次没放映机时再按 F9。三个桌面各记各的。勾选框右边的下拉框是冷却分钟数：某个桌面按过 F9 后，选定的分钟数内不再考虑给它按 F9，时间到了、放映机还不在就再按一次；选 0 是不设冷却，和没有这个下拉框一样；选「不使用」等于没勾这个勾选框"
     . "`nF12：开始 / 暂停「开箱子」"
     . "`n飘号键（1 左边）：开启 / 关闭「快捷切换」"
     . "`nF1 / F2 / F3：切到桌面 1 / 2 / 3（快捷切换开启时才管用）"
@@ -257,10 +258,15 @@ ToggleHelp(*) {
 
 ; ---- 功能 1：桌面轮询 ----
 MyGui.Add("Text", "x10 y10 w360", "1. 桌面轮询 (F11)")
-btnDesktop := MyGui.Add("Button", "x10 y35 w100 h30", "开始")
+btnDesktop := MyGui.Add("Button", "x10 y35 w70 h30", "开始")
 btnDesktop.OnEvent("Click", MinimizeAndRun(ToggleDesktop))
-chkLifeWater := MyGui.Add("CheckBox", "x115 y35 w150 h30", "使用女神的生命水")
-btnDesktopPause := MyGui.Add("Button", "x270 y35 w100 h30", "暂停")
+chkLifeWater := MyGui.Add("CheckBox", "x85 y35 w140 h30", "使用女神的生命水")
+; 生命水冷却下拉框：0/5/10/20/30 是分钟数，「不使用」等于关掉生命水。
+; 默认选 0（不设冷却，和没有这个框时一样），每次打开脚本都回到 0，不存配置。
+ddlLifeWater := MyGui.Add("DropDownList", "x230 y35 w55 r6", ["0", "5", "10", "20", "30", "不使用"])
+ddlLifeWater.Value := 1
+MyGui.Add("Text", "x290 y42 w28", "分钟")
+btnDesktopPause := MyGui.Add("Button", "x320 y35 w50 h30", "暂停")
 btnDesktopPause.OnEvent("Click", MinimizeAndRun(ToggleManualPause))
 txtDesktopStatus := MyGui.Add("Text", "x10 y70 w360", "状态：未运行")
 MyGui.Add("Text", "x10 y90 w360 h2 +0x1000")
@@ -846,7 +852,10 @@ StepDesktop() {
 ;   4. 状态没找到：按 F；放映机图标在，才在约 0.05 秒后按 X；不点。
 ;   5. 女神的生命水（勾选框勾上才生效，本轮动作做完后判断一次）：
 ;      放映机不在、且这个桌面还没记过已使用，就按 F9 并记已使用；
-;      放映机在，就把标记改回未使用。见 ApplyLifeWaterRule。
+;      放映机在，就把标记改回未使用。勾选框右边的下拉框选了
+;      5/10/20/30 分钟时，按过 F9 的桌面冷却这么久，时间到了、
+;      放映机还是不在就再按一次 F9；选 0 不设冷却，选「不使用」
+;      等于没勾。见 ApplyLifeWaterRule。
 MainCheckStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey, DesktopKey2, KeyGapMs
     global CheckProjFound, CheckStatusNotFound
@@ -943,26 +952,46 @@ MainCheckStep() {
 ; 桌面放映机图标在了，就把标记改回未使用，下次不在时再按 F9。
 ; 三个桌面各记各的（LifeWaterUsed 下标 1..3）。标记只在这次
 ; 运行里记着，脚本重开就回到全未使用。
+; 勾选框右边的下拉框是冷却分钟数（判断时现读）：
+;   选 0：不设冷却，和没有这个下拉框时一样（就按上面标记走）。
+;   选 5/10/20/30：某个桌面按过 F9 后，这么多分钟内不再考虑
+;     给它按 F9；时间到了、放映机还是不在，就再按一次 F9 并
+;     重新计时（标记仍是已使用；放映机出现照样提前清标记）。
+;   选「不使用」：等于没勾勾选框，这个函数直接返回。
 ; 在本轮动作都做完、要切走之前调用（MainCheckStep 的两个提前
 ; 返回处和 PressXStep 的两个结尾处各调一次，每轮只会走到一处）。
 ApplyLifeWaterRule(Idx) {
-    global chkLifeWater, LifeWaterUsed, CheckProjFound
+    global chkLifeWater, ddlLifeWater, LifeWaterUsed, LifeWaterPressTick, CheckProjFound
     if (!chkLifeWater.Value) {
         return
     }
+    SelText := ddlLifeWater.Text
+    if (SelText = "不使用") {
+        return
+    }
+    CooldownMin := Integer(SelText)   ; 0、5、10、20、30（分钟）
     while (LifeWaterUsed.Length < Idx) {
         LifeWaterUsed.Push(false)
+        LifeWaterPressTick.Push(0)
     }
     if (CheckProjFound) {
         if (LifeWaterUsed[Idx]) {
             LifeWaterUsed[Idx] := false
             LogFind("D" Idx " lifewater: projector yes, mark cleared (unused)")
         }
+        LifeWaterPressTick[Idx] := 0
     } else if (!LifeWaterUsed[Idx]) {
         Send("{F9}")
         LifeWaterUsed[Idx] := true
+        LifeWaterPressTick[Idx] := A_TickCount
         LogFind("D" Idx " lifewater: projector no, pressed F9, marked used")
         ToolTip("Desktop " Idx ": projector no, pressed F9 (life water)")
+    } else if (CooldownMin > 0 && LifeWaterPressTick[Idx] > 0
+        && (A_TickCount - LifeWaterPressTick[Idx] >= CooldownMin * 60000)) {
+        Send("{F9}")
+        LifeWaterPressTick[Idx] := A_TickCount
+        LogFind("D" Idx " lifewater: cooldown " CooldownMin " min expired, pressed F9 again")
+        ToolTip("Desktop " Idx ": life water cooldown expired, pressed F9 again")
     }
 }
 
