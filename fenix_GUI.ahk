@@ -183,6 +183,7 @@ ProjectorText := "|<projector>*79$46.s000000TDzzzzzwwzzzzzzurzzzzzzfTzVzzzyhzw3z
 ProjectorTextOld := "|<projector>*68$45.Tzzzzzzv0000003Hzzzzzz+TzzzzzxLzwLzzzezz1zzzxLzk7zzzezy0zzzxLzU6T3zezw0s1zxLzU3EHzezw0sERxLzo701zezy0s0DxLzm764rezk0k1axLw084Srez001UCxLk0601zey80y0jxLl00k1jez8006NxLt0007jezUz07zxLz3z0zzezs3y7zxLzU7lzrezwM6DyxLzVs7zzezz7szzxLzwDzzzezzsTzbxLzzszbzezzzkXzxLzzzzzzfTzzzzzzQ000000vzzzzzzzSnk0008I"
 
 ClickMode := ""         ; "" = 未运行，"both" = 两种同时，"right" = 仅右键（抽奖），"two" = 仅两点点击（合成）
+LastClickMode := "both" ; F12 启动时用上次的开箱子模式（第一次默认 both）；只记本次运行，不存配置
 TwoRunning := false
 TwoPhase := 0
 WaitAfterFirst := 1000    ; 点 1 后等，固定值
@@ -236,7 +237,7 @@ HelpShown := false
 HelpText := "快捷键说明"
     . "`n`nF11：开始 / 停止「桌面轮询」"
     . "`n「使用女神的生命水」勾选框（在轮询启停键按钮的右边，勾上才生效）：轮询到某个桌面没找到放映机图标、且这个桌面还没用过生命水，就按一次 F9 并记为已用过；之后再轮询到还是没放映机，不再按；等轮询到这个桌面又有放映机了，标记改回未用过，下次没放映机时再按 F9。三个桌面各记各的。勾选框右边的下拉框（勾上勾选框后才出现）是冷却分钟数：某个桌面按过 F9 后，选定的分钟数内不再考虑给它按 F9，时间到了、放映机还不在就再按一次；选 0 是不设冷却，和没有这个下拉框一样；选「不使用」等于没勾这个勾选框"
-    . "`nF12：开始 / 暂停「开箱子」"
+    . "`nF12：开始 / 停止「开箱子」（开始时启动上次点的那个模式）"
     . "`n飘号键（1 左边）：开启 / 关闭「快捷切换」"
     . "`nF1 / F2 / F3：切到桌面 1 / 2 / 3（快捷切换开启时才管用）"
     . "`nF4：回放录制，点按回放 1 次，按住约 2 秒无限回放，回放中再按 F4 立刻停（快捷切换开启时才管用）"
@@ -1084,7 +1085,7 @@ StopClickLoops() {
 }
 
 ToggleBoth(*) {
-    global ClickMode, TwoRunning, TwoPhase, Point1X, Point1Y, Point2X, Point2Y
+    global ClickMode, LastClickMode, TwoRunning, TwoPhase, Point1X, Point1Y, Point2X, Point2Y
     global WaitAfterFirst, WaitAfterSecond, RightRunning, RightX, RightY, RightClickInterval
     if (ClickMode = "both") {
         StopClickLoops()
@@ -1098,6 +1099,7 @@ ToggleBoth(*) {
     TwoPhase := 0
     RightRunning := true
     ClickMode := "both"
+    LastClickMode := "both"
     UpdateClickButtons()
     StepTwo()
     StepRight()
@@ -1105,7 +1107,7 @@ ToggleBoth(*) {
 }
 
 ToggleRightOnly(*) {
-    global ClickMode, RightRunning, RightX, RightY, RightClickInterval
+    global ClickMode, LastClickMode, RightRunning, RightX, RightY, RightClickInterval
     if (ClickMode = "right") {
         StopClickLoops()
         ToolTip()
@@ -1116,13 +1118,14 @@ ToggleRightOnly(*) {
     StopQuickSwitch()
     RightRunning := true
     ClickMode := "right"
+    LastClickMode := "right"
     UpdateClickButtons()
     StepRight()
     SetTimer(StepRight, RightClickInterval)
 }
 
 ToggleSynth(*) {
-    global ClickMode, TwoRunning, TwoPhase, Point1X, Point1Y, Point2X, Point2Y, WaitAfterFirst, WaitAfterSecond
+    global ClickMode, LastClickMode, TwoRunning, TwoPhase, Point1X, Point1Y, Point2X, Point2Y, WaitAfterFirst, WaitAfterSecond
     if (ClickMode = "two") {
         StopClickLoops()
         ToolTip()
@@ -1134,6 +1137,7 @@ ToggleSynth(*) {
     TwoRunning := true
     TwoPhase := 0
     ClickMode := "two"
+    LastClickMode := "two"
     UpdateClickButtons()
     StepTwo()
 }
@@ -1183,13 +1187,18 @@ SaveConfig(*) {
     MsgBox("配置已保存到：`n" ConfigFile "`n下次打开脚本会自动恢复这些坐标。")
 }
 
-; F12 用的开关：未运行时启动两种点击同时模式，
-; 运行中（无论哪种模式）则暂停。
+; F12 用的开关：未运行时启动上次用的开箱子模式
+; （点哪个按钮启动的就记哪个；第一次没点过，默认两种点击
+; 同时操作），运行中（无论哪种模式）则停止。
 ToggleClickHotkey(*) {
-    global ClickMode
+    global ClickMode, LastClickMode
     if (ClickMode != "") {
         StopClickLoops()
         ToolTip()
+    } else if (LastClickMode = "right") {
+        ToggleRightOnly()
+    } else if (LastClickMode = "two") {
+        ToggleSynth()
     } else {
         ToggleBoth()
     }
@@ -1687,7 +1696,7 @@ DeleteRecord(*) {
 
 ; ===== 快捷键 =====
 ; F11 = 桌面轮询 开启 / 停止（再启动从桌面 1 重新开始）
-; F12 = 开箱子 开启 / 暂停
+; F12 = 开箱子 开启 / 停止（开启时用上次的模式）
 F11::ToggleDesktop()
 F12::ToggleClickHotkey()
 SC029::ToggleQuickSwitch()
