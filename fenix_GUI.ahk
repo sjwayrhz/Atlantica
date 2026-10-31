@@ -55,8 +55,8 @@ DetectHiddenWindows(true)
 ;        不按 F；未知图标按 F、按 X、不点图标；放映机图标在、并且
 ;        状态图标是暗色，才按 F、按 X、点状态图标一下，尝试帮它
 ;        变亮色。放映机图标不在，就只按 F，不按 X、不点。一直重复。
-;      暂停：点“暂停”按钮手动暂停（轮询和开箱子都停），再点
-;      一次继续。F11 是停止（再启动从桌面 1 重新开始）。
+;      没有暂停按钮：F11（或点「启停键 F11」按钮）就是停止
+;      （再启动从桌面 1 重新开始）。
 ;   2. 开箱子（两点点击 + 右键点击合并）：
 ;      左边按钮：两种点击同时操作
 ;        两点点击：(700,450) 点一下 -> (822,450) 点一下，循环
@@ -69,8 +69,8 @@ DetectHiddenWindows(true)
 ;      再点一次正在运行的按钮就是停止。
 ; 使用：双击运行本脚本，点按钮或按快捷键即可。
 ;       F11 开关桌面轮询，F12 开关开箱子。
-;       桌面轮询有开始和暂停两个按钮，中间有个
-;       「使用女神的生命水」勾选框，右边是冷却分钟下拉框；参数直接写死在代码里。开箱子的坐标用按钮取点（窗口会最小化，
+;       桌面轮询有一个「启停键 F11」按钮，右边有个
+;       「使用女神的生命水」勾选框，勾上后右边出现冷却分钟下拉框；参数直接写死在代码里。开箱子的坐标用按钮取点（窗口会最小化，
 ;       在屏幕上点一下就行），点“保存配置”会存到同目录的
 ;       fenix_Config.ini，下次打开自动恢复。
 ;       关窗口或点“退出”即全部停止并退出。
@@ -123,7 +123,6 @@ GameTitle := "Atlantica Online Fenix"  ; 游戏窗口标题（截图里看到的
 CyclePhase := "main"
 CycleCount := 0
 CurrentDesktop := 0
-ManualPaused := false   ; 手动暂停的开关
 QuickSwitchEnabled := false ; 快捷切换桌面（键盘 F1/F2/F3）的开关；打开脚本时默认开启（自动执行段末尾调 StartQuickSwitch）
 Recording := false        ; 是不是正在录鼠标
 RecordEvents := []        ; 录下来的鼠标动作，每条是 [类型, X, Y, 间隔毫秒]
@@ -236,7 +235,7 @@ MinimizeThenCall(Func) {
 HelpShown := false
 HelpText := "快捷键说明"
     . "`n`nF11：开始 / 停止「桌面轮询」"
-    . "`n「使用女神的生命水」勾选框（在轮询的开始和暂停中间，勾上才生效）：轮询到某个桌面没找到放映机图标、且这个桌面还没用过生命水，就按一次 F9 并记为已用过；之后再轮询到还是没放映机，不再按；等轮询到这个桌面又有放映机了，标记改回未用过，下次没放映机时再按 F9。三个桌面各记各的。勾选框右边的下拉框（勾上勾选框后才出现）是冷却分钟数：某个桌面按过 F9 后，选定的分钟数内不再考虑给它按 F9，时间到了、放映机还不在就再按一次；选 0 是不设冷却，和没有这个下拉框一样；选「不使用」等于没勾这个勾选框"
+    . "`n「使用女神的生命水」勾选框（在轮询启停键按钮的右边，勾上才生效）：轮询到某个桌面没找到放映机图标、且这个桌面还没用过生命水，就按一次 F9 并记为已用过；之后再轮询到还是没放映机，不再按；等轮询到这个桌面又有放映机了，标记改回未用过，下次没放映机时再按 F9。三个桌面各记各的。勾选框右边的下拉框（勾上勾选框后才出现）是冷却分钟数：某个桌面按过 F9 后，选定的分钟数内不再考虑给它按 F9，时间到了、放映机还不在就再按一次；选 0 是不设冷却，和没有这个下拉框一样；选「不使用」等于没勾这个勾选框"
     . "`nF12：开始 / 暂停「开箱子」"
     . "`n飘号键（1 左边）：开启 / 关闭「快捷切换」"
     . "`nF1 / F2 / F3：切到桌面 1 / 2 / 3（快捷切换开启时才管用）"
@@ -258,20 +257,18 @@ ToggleHelp(*) {
 
 ; ---- 功能 1：桌面轮询 ----
 MyGui.Add("Text", "x10 y10 w360", "1. 桌面轮询 (F11)")
-btnDesktop := MyGui.Add("Button", "x10 y35 w70 h30", "开始")
+btnDesktop := MyGui.Add("Button", "x10 y35 w100 h30", "启停键 F11")
 btnDesktop.OnEvent("Click", MinimizeAndRun(ToggleDesktop))
-chkLifeWater := MyGui.Add("CheckBox", "x85 y35 w140 h30", "使用女神的生命水")
+chkLifeWater := MyGui.Add("CheckBox", "x115 y35 w135 h30", "使用女神的生命水")
 chkLifeWater.OnEvent("Click", ToggleLifeWaterOptions)
 ; 生命水冷却下拉框：0/5/10/20/30 是分钟数，「不使用」等于关掉生命水。
 ; 默认选 0（不设冷却，和没有这个框时一样），每次打开脚本都回到 0，不存配置。
 ; 勾上勾选框才显示下拉框和「分钟」两个字，不勾就藏起来（默认不勾，所以先藏）。
-ddlLifeWater := MyGui.Add("DropDownList", "x230 y35 w55 r6", ["0", "5", "10", "20", "30", "不使用"])
+ddlLifeWater := MyGui.Add("DropDownList", "x255 y35 w55 r6", ["0", "5", "10", "20", "30", "不使用"])
 ddlLifeWater.Value := 1
-txtLifeWaterUnit := MyGui.Add("Text", "x290 y42 w28", "分钟")
+txtLifeWaterUnit := MyGui.Add("Text", "x315 y42 w28", "分钟")
 ddlLifeWater.Visible := false
 txtLifeWaterUnit.Visible := false
-btnDesktopPause := MyGui.Add("Button", "x320 y35 w50 h30", "暂停")
-btnDesktopPause.OnEvent("Click", MinimizeAndRun(ToggleManualPause))
 txtDesktopStatus := MyGui.Add("Text", "x10 y70 w360", "状态：未运行")
 MyGui.Add("Text", "x10 y90 w360 h2 +0x1000")
 
@@ -375,20 +372,19 @@ if (DesktopCount >= 1) {
 ; 三个功能互斥：同一时间只能跑一个。启动哪个功能，就先停掉另外两个；
 ; 以后加新功能也按这个规矩——启动时停掉其他所有功能。
 StopDesktopPolling() {
-    global DesktopRunning, CyclePhase, btnDesktop, txtDesktopStatus
+    global DesktopRunning, CyclePhase, txtDesktopStatus
     if (!DesktopRunning) {
         return
     }
     DesktopRunning := false
     CyclePhase := ""
     SetTimer(StepDesktop, 0)
-    btnDesktop.Text := "开始"
     txtDesktopStatus.Text := "状态：已停止"
 }
 
 ToggleDesktop(*) {
     global DesktopRunning, DesktopPhase, DesktopWaitMs, DesktopKey, SwitchClickX, SwitchClickY
-    global btnDesktop, txtDesktopStatus
+    global txtDesktopStatus
     global CfgDesktopWait, CfgDesktopKey, CfgSwitchX, CfgSwitchY
     global CyclePhase, CycleCount, DesktopNext, CurrentDesktop, DesktopCount
     global CalStatusX, CalStatusY, CalProjX, CalProjY
@@ -422,7 +418,6 @@ ToggleDesktop(*) {
     DesktopNext := 0
     CurrentDesktop := 0
     StartCyclePhase("main")
-    btnDesktop.Text := "停止"
     StepDesktop()
 }
 
@@ -436,18 +431,6 @@ StartCyclePhase(NewPhase) {
     CurrentDesktop := 0
     ToolTip()
     txtDesktopStatus.Text := "状态：轮询中（放映机图标在才按 X，暗色才点状态图标，未知不点）"
-}
-
-; 是不是手动暂停了：轮询和开箱子都用这个判断。
-UserBusy() {
-    global ManualPaused
-    return ManualPaused
-}
-
-; 轮询的暂停检查（只认手动暂停）：暂停返回 true，恢复返回 false。
-CheckPaused() {
-    global ManualPaused
-    return ManualPaused
 }
 
 ; 把一次找到的结果记到脚本同目录的 fenix_Find_Log.txt，
@@ -775,14 +758,6 @@ StepDesktop() {
     global GameWinX, GameWinY, GameWinW, GameWinH
     global txtDesktopStatus
     if (!DesktopRunning) {
-        return
-    }
-    ; 暂停：点了手动暂停，就停在这里，什么都不做；
-    ; 再点一次继续。
-    if (CheckPaused()) {
-        ToolTip("Paused manually, click Continue to resume")
-        txtDesktopStatus.Text := "状态：已暂停（手动暂停，点「继续」恢复）"
-        SetTimer(StepDesktop, 250)
         return
     }
     if (DesktopPhase = "switch") {
@@ -1165,11 +1140,6 @@ ToggleSynth(*) {
 
 StepTwo() {
     global TwoPhase, Point1X, Point1Y, Point2X, Point2Y, WaitAfterFirst, WaitAfterSecond
-    ; 手动暂停了，就不点，等点了继续后再点。
-    if (UserBusy()) {
-        SetTimer(StepTwo, 500)
-        return
-    }
     if (TwoPhase = 0) {
         Click(Point1X, Point1Y)
         ToolTip("点了点 1 (" Point1X ", " Point1Y ")")
@@ -1185,10 +1155,6 @@ StepTwo() {
 
 StepRight() {
     global RightX, RightY
-    ; 手动暂停了，就不点，下次定时到了再试。
-    if (UserBusy()) {
-        return
-    }
     Click(RightX, RightY, "Right")
     ToolTip("右键点了 (" RightX ", " RightY ")")
 }
@@ -1226,27 +1192,6 @@ ToggleClickHotkey(*) {
         ToolTip()
     } else {
         ToggleBoth()
-    }
-}
-
-; 手动暂停 / 继续（轮询和开箱子都停，再点一次继续）。
-ToggleManualPause(*) {
-    global ManualPaused
-    ManualPaused := !ManualPaused
-    UpdatePauseButton()
-    if (ManualPaused) {
-        ToolTip("Paused manually, click Continue to resume")
-    } else {
-        ToolTip()
-    }
-}
-
-; 按暂停状态更新轮询区的暂停按钮文字：暂停时显示“继续”，没暂停显示“暂停”。
-UpdatePauseButton() {
-    global ManualPaused, btnDesktopPause
-    try {
-        btnDesktopPause.Text := ManualPaused ? "继续" : "暂停"
-    } catch {
     }
 }
 
