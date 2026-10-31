@@ -236,7 +236,7 @@ MinimizeThenCall(Func) {
 HelpShown := false
 HelpText := "快捷键说明"
     . "`n`nF11：开始 / 停止「桌面轮询」"
-    . "`n「使用女神的生命水」勾选框（在轮询的开始和暂停中间，勾上才生效）：轮询到某个桌面没找到放映机图标、且这个桌面还没用过生命水，就按一次 F9 并记为已用过；之后再轮询到还是没放映机，不再按；等轮询到这个桌面又有放映机了，标记改回未用过，下次没放映机时再按 F9。三个桌面各记各的。勾选框右边的下拉框是冷却分钟数：某个桌面按过 F9 后，选定的分钟数内不再考虑给它按 F9，时间到了、放映机还不在就再按一次；选 0 是不设冷却，和没有这个下拉框一样；选「不使用」等于没勾这个勾选框"
+    . "`n「使用女神的生命水」勾选框（在轮询的开始和暂停中间，勾上才生效）：轮询到某个桌面没找到放映机图标、且这个桌面还没用过生命水，就按一次 F9 并记为已用过；之后再轮询到还是没放映机，不再按；等轮询到这个桌面又有放映机了，标记改回未用过，下次没放映机时再按 F9。三个桌面各记各的。勾选框右边的下拉框（勾上勾选框后才出现）是冷却分钟数：某个桌面按过 F9 后，选定的分钟数内不再考虑给它按 F9，时间到了、放映机还不在就再按一次；选 0 是不设冷却，和没有这个下拉框一样；选「不使用」等于没勾这个勾选框"
     . "`nF12：开始 / 暂停「开箱子」"
     . "`n飘号键（1 左边）：开启 / 关闭「快捷切换」"
     . "`nF1 / F2 / F3：切到桌面 1 / 2 / 3（快捷切换开启时才管用）"
@@ -261,11 +261,15 @@ MyGui.Add("Text", "x10 y10 w360", "1. 桌面轮询 (F11)")
 btnDesktop := MyGui.Add("Button", "x10 y35 w70 h30", "开始")
 btnDesktop.OnEvent("Click", MinimizeAndRun(ToggleDesktop))
 chkLifeWater := MyGui.Add("CheckBox", "x85 y35 w140 h30", "使用女神的生命水")
+chkLifeWater.OnEvent("Click", ToggleLifeWaterOptions)
 ; 生命水冷却下拉框：0/5/10/20/30 是分钟数，「不使用」等于关掉生命水。
 ; 默认选 0（不设冷却，和没有这个框时一样），每次打开脚本都回到 0，不存配置。
+; 勾上勾选框才显示下拉框和「分钟」两个字，不勾就藏起来（默认不勾，所以先藏）。
 ddlLifeWater := MyGui.Add("DropDownList", "x230 y35 w55 r6", ["0", "5", "10", "20", "30", "不使用"])
 ddlLifeWater.Value := 1
-MyGui.Add("Text", "x290 y42 w28", "分钟")
+txtLifeWaterUnit := MyGui.Add("Text", "x290 y42 w28", "分钟")
+ddlLifeWater.Visible := false
+txtLifeWaterUnit.Visible := false
 btnDesktopPause := MyGui.Add("Button", "x320 y35 w50 h30", "暂停")
 btnDesktopPause.OnEvent("Click", MinimizeAndRun(ToggleManualPause))
 txtDesktopStatus := MyGui.Add("Text", "x10 y70 w360", "状态：未运行")
@@ -960,6 +964,14 @@ MainCheckStep() {
 ;   选「不使用」：等于没勾勾选框，这个函数直接返回。
 ; 在本轮动作都做完、要切走之前调用（MainCheckStep 的两个提前
 ; 返回处和 PressXStep 的两个结尾处各调一次，每轮只会走到一处）。
+; 勾上「使用女神的生命水」才显示冷却下拉框和「分钟」两个字，不勾就藏起来。
+ToggleLifeWaterOptions(*) {
+    global chkLifeWater, ddlLifeWater, txtLifeWaterUnit
+    Show := chkLifeWater.Value ? true : false
+    ddlLifeWater.Visible := Show
+    txtLifeWaterUnit.Visible := Show
+}
+
 ApplyLifeWaterRule(Idx) {
     global chkLifeWater, ddlLifeWater, LifeWaterUsed, LifeWaterPressTick, CheckProjFound
     if (!chkLifeWater.Value) {
